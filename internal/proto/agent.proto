@@ -1,0 +1,33 @@
+syntax = "proto3";
+package agent;
+option go_package = "github.com/fstr52/final-calculator/proto/agent";
+
+service OrchestratorService {
+    rpc GetTask(WorkerInfo) returns (Task);
+    rpc SubmitResult(TaskResult) returns (Ack);
+}
+
+message WorkerInfo {
+    string worker_id = 1;
+}
+
+message Task {
+    string task_id = 1;
+    float left = 2;
+    string operator = 3;
+    float right = 4;
+    bool has_task = 5;
+    string expr_id = 6;
+}
+
+message TaskResult {
+    string task_id = 1;
+    bool success = 2;
+    string error = 3;
+    float result = 4;
+    string expr_id = 5;
+}
+
+message Ack {
+    bool accepted = 1;
+}

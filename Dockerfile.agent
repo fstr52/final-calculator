@@ -1,0 +1,39 @@
+# Dockerfile для агента
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+
+# Копируем go.mod и go.sum для кэширования зависимостей
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Копируем исходный код
+COPY . .
+
+# Собираем агента
+RUN CGO_ENABLED=0 GOOS=linux go build -o /agent ./cmd/agent
+
+# Используем минимальный образ для запуска
+FROM alpine:latest
+
+WORKDIR /app
+
+# Устанавливаем зависимости
+RUN apk --no-cache add ca-certificates tzdata
+
+# Копируем исполняемый файл агента
+COPY --from=builder /agent /app/agent
+
+# Копируем конфигурационные файлы
+COPY configs/agent.yaml /app/configs/
+
+# Создаем директорию для логов
+RUN mkdir -p /app/logs
+
+# Устанавливаем переменные окружения
+ENV ORCHESTRATOR_HOST=orchestrator
+ENV ORCHESTRATOR_PORT=8080
+ENV COMPUTING_POWER=5
+
+# Запускаем агента
+CMD ["/app/agent"]

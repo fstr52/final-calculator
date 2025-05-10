@@ -1,0 +1,14 @@
+*.vscode
+configs/*.yaml
+!configs/*.example
+internal/db/postgresql/dbstruct.sql
+desktop.ini
+Thumbs.db
+*.exe
+*.exe~
+/build/
+/bin/
+/out/
+*.log
+logs/
+.git

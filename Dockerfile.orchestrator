@@ -1,0 +1,46 @@
+# Dockerfile для оркестратора
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+
+# Копируем go.mod и go.sum для кэширования зависимостей
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Копируем исходный код
+COPY . .
+
+# Собираем оркестратора
+RUN CGO_ENABLED=0 GOOS=linux go build -o /orchestrator ./cmd/orchestrator
+
+# Используем минимальный образ для запуска
+FROM alpine:latest
+
+WORKDIR /app
+
+# Устанавливаем зависимости
+RUN apk --no-cache add ca-certificates tzdata
+
+# Копируем исполняемый файл оркестратора
+COPY --from=builder /orchestrator /app/orchestrator
+
+# Копируем конфигурационные файлы
+COPY configs/orchestrator.yaml /app/configs/
+
+# Создаем директорию для логов
+RUN mkdir -p /app/logs
+
+# Устанавливаем переменные окружения
+ENV ORCHESTRATOR_PORT=8080
+ENV DB_HOST=postgres
+ENV DB_PORT=5432
+ENV DB_USERNAME=postgres
+ENV DB_PASSWORD=postgres
+ENV DB_NAME=calculator
+ENV SIGNING_KEY=your_secret_key
+
+# Открываем порт
+EXPOSE 8080
+
+# Запускаем оркестратора
+CMD ["/app/orchestrator"]

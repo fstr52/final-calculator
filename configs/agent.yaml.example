@@ -1,0 +1,18 @@
+signing_key: your_secret_key
+debug: false
+
+orchestrator: {}
+
+agent:
+  orchestrator_host: orchestrator
+  orchestrator_port: "8080"
+  computing_power: 10
+
+data_base: {}
+
+logging:
+  to_file: true
+  logging_dir: ./logs
+  logging_format: json
+  logging_file_max_size: 10
+  logging_max_filex: 3
