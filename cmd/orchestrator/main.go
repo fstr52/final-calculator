@@ -11,7 +11,6 @@ import (
 
 	"github.com/fstr52/final-calculator/internal/config"
 	"github.com/fstr52/final-calculator/internal/db/postgresql"
-	"github.com/fstr52/final-calculator/internal/expression/db"
 	"github.com/fstr52/final-calculator/internal/logger"
 	"github.com/fstr52/final-calculator/internal/orchestrator"
 )
@@ -58,7 +57,7 @@ func main() {
 			"error", err)
 	}
 
-	if err := db.InitSchema(workCtx, pgClient); err != nil {
+	if err := postgresql.InitSchema(workCtx, pgClient); err != nil {
 		logger.Error("Failed to init schema",
 			"error", err)
 	}
@@ -73,7 +72,7 @@ func main() {
 			"error", err)
 	}
 
-	o := orchestrator.NewOrchestrator(logger)
+	o := orchestrator.NewOrchestrator(logger, pgClient)
 
 	router := orchestrator.SetupRouter(o, auth)
 	port := ":" + strconv.Itoa(cfg.Orchestrator.Port)

@@ -14,6 +14,7 @@ func SetupRouter(o *Orchestrator, auth *AuthHandler) *gin.Engine {
 		authorized.Use(auth.AuthorizationMiddleware())
 		{
 			authorized.POST("/calculate", o.CalculateHandler)
+			authorized.GET("/expressions", o.ExpressionsHandler)
 		}
 	}
 	return router

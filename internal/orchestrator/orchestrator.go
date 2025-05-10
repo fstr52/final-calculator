@@ -2,10 +2,14 @@ package orchestrator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/fstr52/final-calculator/internal/db/postgresql"
+	"github.com/fstr52/final-calculator/internal/expression"
+	"github.com/fstr52/final-calculator/internal/expression/db"
 	"github.com/fstr52/final-calculator/internal/logger"
 	"github.com/fstr52/final-calculator/internal/parser"
 	pr "github.com/fstr52/final-calculator/internal/proto"
@@ -21,13 +25,14 @@ type Orchestrator struct {
 	pendingOps       map[string]OperationRequest
 	expressionByRoot map[string]*Expression
 	toSend           []OperationRequest
+	exprStorage      expression.Storage
 
 	cacheMu sync.RWMutex
 	exprMu  sync.Mutex
 	sendMu  sync.Mutex
 }
 
-func NewOrchestrator(logger logger.Logger) *Orchestrator {
+func NewOrchestrator(logger logger.Logger, client postgresql.Client) *Orchestrator {
 	return &Orchestrator{
 		logger:           logger,
 		expressionQueue:  make([]*Expression, 0),
@@ -35,6 +40,7 @@ func NewOrchestrator(logger logger.Logger) *Orchestrator {
 		pendingOps:       make(map[string]OperationRequest),
 		expressionByRoot: make(map[string]*Expression),
 		toSend:           make([]OperationRequest, 0),
+		exprStorage:      db.NewStorage(client),
 	}
 }
 
@@ -276,7 +282,9 @@ func (o *Orchestrator) SubmitResult(ctx context.Context, res *pr.TaskResult) (*p
 	if res.Error != "" {
 		o.logger.Debug("res error",
 			"error", res.Error)
-		//тут надо в бд ставить ошибку выражению по res.ExprId
+		if err := o.ErrorExpression(ctx, res.ExprId, res.Error); err != nil {
+			return ack, err
+		}
 
 		return ack, nil
 	}
@@ -285,8 +293,7 @@ func (o *Orchestrator) SubmitResult(ctx context.Context, res *pr.TaskResult) (*p
 	if _, ok := o.doneCache[res.TaskId]; !ok {
 		o.logger.Error("Received task not found by ID",
 			"ID", res.TaskId)
-		panic("received task not found by ID")
-		//return ack, fmt.Errorf("received task not found by ID")
+		return nil, errors.New("received task not found by ID")
 	}
 	o.doneCache[res.TaskId] = res.Result
 	o.cacheMu.Unlock()
@@ -297,4 +304,23 @@ func (o *Orchestrator) SubmitResult(ctx context.Context, res *pr.TaskResult) (*p
 
 	o.logger.Debug("SubmitResult finished")
 	return ack, nil
+}
+
+func (o *Orchestrator) ErrorExpression(ctx context.Context, exprID string, exprErr string) error {
+	expr, err := o.exprStorage.FindOne(ctx, exprID)
+	if err != nil {
+		o.logger.Error("Error finding expression in DB",
+			"error", err)
+		return err
+	}
+
+	expr.Error = exprErr
+
+	if err = o.exprStorage.Update(ctx, expr); err != nil {
+		o.logger.Error("Error updating expression",
+			"error", err)
+		return err
+	}
+
+	return nil
 }

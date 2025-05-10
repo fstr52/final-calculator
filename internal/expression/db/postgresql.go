@@ -87,6 +87,45 @@ func (s *storage) FindAll(ctx context.Context) (e []expression.Expression, err e
 	return exprs, nil
 }
 
+func (s *storage) FindAllByUser(ctx context.Context, userId string) (e []expression.Expression, err error) {
+	q := `
+		SELECT
+			id,
+			user_id,
+			expression,
+			status,
+			error,
+			result,
+			created_at
+		FROM public.expressions
+		WHERE user_id = $1
+	`
+
+	rows, err := s.client.Query(ctx, q, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	exprs := make([]expression.Expression, 0)
+
+	for rows.Next() {
+		var expr expression.Expression
+
+		err = rows.Scan(&expr.ID, &expr.UserID, &expr.Expression, &expr.Status, &expr.Error, &expr.Result, &expr.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+
+		exprs = append(exprs, expr)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return exprs, nil
+}
+
 func (s *storage) FindOne(ctx context.Context, id string) (expression.Expression, error) {
 	q := `
 		SELECT
