@@ -136,7 +136,7 @@ func (m *MockOperationStorage) FindOne(ctx context.Context, id string) (op.Opera
 	return args.Get(0).(op.Operation), args.Error(1)
 }
 
-func (m *MockOperationStorage) UpdateOperationResult(ctx context.Context, opID string, result float32, status string) error {
+func (m *MockOperationStorage) UpdateOperationResult(ctx context.Context, opID string, result float64, status string) error {
 	args := m.Called(ctx, opID, result, status)
 	return args.Error(0)
 }
@@ -173,7 +173,7 @@ func setupTestOrchestrator() *testOrchestrator {
 	orch := &Orchestrator{
 		logger:           mockLogger,
 		expressionQueue:  make([]*ex.Expression, 0),
-		doneCache:        make(map[string]float32),
+		doneCache:        make(map[string]float64),
 		pendingOps:       make(map[string]op.Operation),
 		expressionByRoot: make(map[string]*ex.Expression),
 		toSend:           make([]op.Operation, 0),
@@ -194,7 +194,7 @@ func TestRestoreState(t *testing.T) {
 	orch := &Orchestrator{
 		logger:           setupMockLogger(),
 		expressionQueue:  make([]*ex.Expression, 0),
-		doneCache:        make(map[string]float32),
+		doneCache:        make(map[string]float64),
 		pendingOps:       make(map[string]op.Operation),
 		expressionByRoot: make(map[string]*ex.Expression),
 		toSend:           make([]op.Operation, 0),
@@ -368,7 +368,7 @@ func TestDependenciesProcessing(t *testing.T) {
 	orch := &Orchestrator{
 		logger:           setupMockLogger(),
 		expressionQueue:  make([]*ex.Expression, 0),
-		doneCache:        make(map[string]float32),
+		doneCache:        make(map[string]float64),
 		pendingOps:       make(map[string]op.Operation),
 		expressionByRoot: make(map[string]*ex.Expression),
 		toSend:           make([]op.Operation, 0),

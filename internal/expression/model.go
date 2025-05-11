@@ -29,7 +29,7 @@ type Expression struct {
 	RootOperationID string    `json:"root_operation_id"`
 	Status          string    `json:"status"`
 	Success         bool      `json:"success"`
-	Result          float32   `json:"result"`
+	Result          float64   `json:"result"`
 	Error           string    `json:"error"`
 	Expression      string    `json:"expression"`
 	CreatedAt       time.Time `json:"created_at"`

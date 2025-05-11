@@ -23,7 +23,7 @@
 4. Перейдите в директорию проекта
 5. Запустите приложение через команду (для linux используйте makefile):
     ```console
-    docker-compose up
+    docker-compose up --build
     ```
 6. Сервис доступен по адресу: `http://localhost` в браузере (или `http://localhost:8080` при работе через postman)
 

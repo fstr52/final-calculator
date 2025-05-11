@@ -30,7 +30,7 @@ type Orchestrator struct {
 	oc     OperationsConfig
 
 	expressionQueue  []*ex.Expression
-	doneCache        map[string]float32
+	doneCache        map[string]float64
 	opErrorCache     map[string]string
 	pendingOps       map[string]op.Operation
 	expressionByRoot map[string]*ex.Expression
@@ -47,7 +47,7 @@ func NewOrchestrator(logger logger.Logger, client postgresql.Client, oc Operatio
 	return &Orchestrator{
 		logger:           logger,
 		expressionQueue:  make([]*ex.Expression, 0),
-		doneCache:        make(map[string]float32),
+		doneCache:        make(map[string]float64),
 		opErrorCache:     make(map[string]string),
 		pendingOps:       make(map[string]op.Operation),
 		expressionByRoot: make(map[string]*ex.Expression),
@@ -160,6 +160,23 @@ func (o *Orchestrator) NewExpression(ctx context.Context, input string, userID s
 
 	rootId := o.planOperations(ctx, expr, ast)
 	expr.RootOperationID = rootId
+
+	if _, ok := ast.(*parser.Number); ok {
+		o.cacheMu.RLock()
+		res := o.doneCache[rootId]
+		o.cacheMu.RUnlock()
+
+		expr.Status = ex.StatusDone.String()
+		expr.Success = true
+		expr.Result = res
+
+		if err := o.UpdateExpression(ctx, *expr); err != nil {
+			return nil, err
+		}
+
+		o.expressionByRoot[rootId] = expr
+		return expr, nil
+	}
 
 	o.exprMu.Lock()
 	o.expressionQueue = append(o.expressionQueue, expr)

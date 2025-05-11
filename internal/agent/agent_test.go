@@ -96,52 +96,35 @@ func testRunWorkerIteration(
 
 	left := task.Left
 	right := task.Right
-	var result float32
+	var result float64
 	var calcErr error
 
+	// В функции testRunWorkerIteration замените проверки на более корректные:
 	switch task.Operator {
 	case "+":
-		sum := float64(left) + float64(right)
-		if sum > float64(math.MaxFloat32) {
-			calcErr = errors.New("result is bigger than possible")
-		} else if sum < -float64(math.MaxFloat32) {
-			calcErr = errors.New("result is lower than possible")
-		} else {
-			result = float32(sum)
+		result = left + right
+		if math.IsInf(result, 0) {
+			calcErr = errors.New("result is infinite")
 		}
 	case "-":
-		diff := float64(left) - float64(right)
-		if diff > float64(math.MaxFloat32) {
-			calcErr = errors.New("result is bigger than possible")
-		} else if diff < -float64(math.MaxFloat32) {
-			calcErr = errors.New("result is lower than possible")
-		} else {
-			result = float32(diff)
+		result = left - right
+		if math.IsInf(result, 0) {
+			calcErr = errors.New("result is infinite")
 		}
 	case "*":
-		prod := float64(left) * float64(right)
-		if prod > float64(math.MaxFloat32) {
-			calcErr = errors.New("result is bigger than possible")
-		} else if prod < -float64(math.MaxFloat32) {
-			calcErr = errors.New("result is lower than possible")
-		} else {
-			result = float32(prod)
+		result = left * right
+		if math.IsInf(result, 0) {
+			calcErr = errors.New("result is infinite")
 		}
 	case "/":
 		if right == 0 {
 			calcErr = errors.New("division by zero")
 		} else {
-			div := float64(left) / float64(right)
-			if div > float64(math.MaxFloat32) {
-				calcErr = errors.New("result is bigger than possible")
-			} else if div < -float64(math.MaxFloat32) {
-				calcErr = errors.New("result is lower than possible")
-			} else {
-				result = float32(div)
+			result = left / right
+			if math.IsInf(result, 0) {
+				calcErr = errors.New("result is infinite")
 			}
 		}
-	default:
-		calcErr = fmt.Errorf("unknown operator: %s", task.Operator)
 	}
 
 	taskResult := &agentpb.TaskResult{
@@ -332,9 +315,9 @@ func TestRunWorkerIteration_Calculation(t *testing.T) {
 	tests := []struct {
 		name     string
 		operator string
-		left     float32
-		right    float32
-		expected float32
+		left     float64
+		right    float64
+		expected float64
 		isError  bool
 		errStr   string
 	}{

@@ -117,49 +117,41 @@ func (a *Agent) RunWorker(ctx context.Context, id string, host string, port stri
 			left := task.Left
 			right := task.Right
 
-			var result float32
+			var result float64
 
 			timer := time.NewTimer(time.Duration(task.OperationTime * time.Hour.Milliseconds()))
 
 			switch task.Operator {
 			case "+":
-				sum := float64(left) + float64(right)
-				if sum > float64(math.MaxFloat32) {
-					err = errors.New("result is bigger than possible")
-				} else if sum < -float64(math.MaxFloat32) {
-					err = errors.New("result is lower than possible")
-				} else {
-					result = float32(sum)
+				result = left + right
+				if math.IsInf(result, 1) {
+					err = errors.New("result is too large (positive infinity)")
+				} else if math.IsInf(result, -1) {
+					err = errors.New("result is too small (negative infinity)")
 				}
 			case "-":
-				diff := float64(left) - float64(right)
-				if diff > float64(math.MaxFloat32) {
-					err = errors.New("result is bigger than possible")
-				} else if diff < -float64(math.MaxFloat32) {
-					err = errors.New("result is lower than possible")
-				} else {
-					result = float32(diff)
+				result = left - right
+				if math.IsInf(result, 1) {
+					err = errors.New("result is too large (positive infinity)")
+				} else if math.IsInf(result, -1) {
+					err = errors.New("result is too small (negative infinity)")
 				}
 			case "*":
-				prod := float64(left) * float64(right)
-				if prod > float64(math.MaxFloat32) {
-					err = errors.New("result is bigger than possible")
-				} else if prod < -float64(math.MaxFloat32) {
-					err = errors.New("result is lower than possible")
-				} else {
-					result = float32(prod)
+				result = left * right
+				if math.IsInf(result, 1) {
+					err = errors.New("result is too large (positive infinity)")
+				} else if math.IsInf(result, -1) {
+					err = errors.New("result is too small (negative infinity)")
 				}
 			case "/":
 				if right == 0 {
 					err = errors.New("division by zero")
 				} else {
-					div := float64(left) / float64(right)
-					if div > float64(math.MaxFloat32) {
-						err = errors.New("result is bigger than possible")
-					} else if div < -float64(math.MaxFloat32) {
-						err = errors.New("result is lower than possible")
-					} else {
-						result = float32(div)
+					result = left / right
+					if math.IsInf(result, 1) {
+						err = errors.New("result is too large (positive infinity)")
+					} else if math.IsInf(result, -1) {
+						err = errors.New("result is too small (negative infinity)")
 					}
 				}
 			}

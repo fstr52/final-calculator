@@ -13,7 +13,7 @@ func TestParser_ParseExpr(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected float32
+		expected float64
 		wantErr  bool
 	}{
 		{
@@ -135,7 +135,7 @@ func TestParser_OperatorPrecedence(t *testing.T) {
 
 	tests := []struct {
 		input    string
-		expected float32
+		expected float64
 	}{
 		{"1 + 2 * 3", 7},      // Умножение имеет больший приоритет
 		{"(1 + 2) * 3", 9},    // Скобки изменяют приоритет

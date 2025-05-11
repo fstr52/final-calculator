@@ -179,7 +179,7 @@ func (s *storage) GetOperationsByExpression(ctx context.Context, exprID string) 
 	return ops, nil
 }
 
-func (s *storage) UpdateOperationResult(ctx context.Context, id string, result float32, status string) error {
+func (s *storage) UpdateOperationResult(ctx context.Context, id string, result float64, status string) error {
 	q := `
         UPDATE public.operations
         SET result = $1,

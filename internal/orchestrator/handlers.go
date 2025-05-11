@@ -13,7 +13,7 @@ type sendStruct struct {
 	ID         string    `json:"id"`
 	Status     string    `json:"status"`
 	Success    bool      `json:"success"`
-	Result     float32   `json:"result"`
+	Result     float64   `json:"result"`
 	Error      string    `json:"error,omitempty"`
 	Expression string    `json:"expression"`
 	CreatedAt  time.Time `json:"created_at"`

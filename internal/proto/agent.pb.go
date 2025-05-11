@@ -68,9 +68,9 @@ func (x *WorkerInfo) GetWorkerId() string {
 type Task struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	Left          float32                `protobuf:"fixed32,2,opt,name=left,proto3" json:"left,omitempty"`
+	Left          float64                `protobuf:"fixed64,2,opt,name=left,proto3" json:"left,omitempty"`
 	Operator      string                 `protobuf:"bytes,3,opt,name=operator,proto3" json:"operator,omitempty"`
-	Right         float32                `protobuf:"fixed32,4,opt,name=right,proto3" json:"right,omitempty"`
+	Right         float64                `protobuf:"fixed64,4,opt,name=right,proto3" json:"right,omitempty"`
 	HasTask       bool                   `protobuf:"varint,5,opt,name=has_task,json=hasTask,proto3" json:"has_task,omitempty"`
 	ExprId        string                 `protobuf:"bytes,6,opt,name=expr_id,json=exprId,proto3" json:"expr_id,omitempty"`
 	OperationTime int64                  `protobuf:"varint,7,opt,name=operation_time,json=operationTime,proto3" json:"operation_time,omitempty"`
@@ -115,7 +115,7 @@ func (x *Task) GetTaskId() string {
 	return ""
 }
 
-func (x *Task) GetLeft() float32 {
+func (x *Task) GetLeft() float64 {
 	if x != nil {
 		return x.Left
 	}
@@ -129,7 +129,7 @@ func (x *Task) GetOperator() string {
 	return ""
 }
 
-func (x *Task) GetRight() float32 {
+func (x *Task) GetRight() float64 {
 	if x != nil {
 		return x.Right
 	}
@@ -162,7 +162,7 @@ type TaskResult struct {
 	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	Success       bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
 	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
-	Result        float32                `protobuf:"fixed32,4,opt,name=result,proto3" json:"result,omitempty"`
+	Result        float64                `protobuf:"fixed64,4,opt,name=result,proto3" json:"result,omitempty"`
 	ExprId        string                 `protobuf:"bytes,5,opt,name=expr_id,json=exprId,proto3" json:"expr_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -219,7 +219,7 @@ func (x *TaskResult) GetError() string {
 	return ""
 }
 
-func (x *TaskResult) GetResult() float32 {
+func (x *TaskResult) GetResult() float64 {
 	if x != nil {
 		return x.Result
 	}
@@ -287,9 +287,9 @@ const file_internal_proto_agent_proto_rawDesc = "" +
 	"\tworker_id\x18\x01 \x01(\tR\bworkerId\"\xc0\x01\n" +
 	"\x04Task\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x12\n" +
-	"\x04left\x18\x02 \x01(\x02R\x04left\x12\x1a\n" +
+	"\x04left\x18\x02 \x01(\x01R\x04left\x12\x1a\n" +
 	"\boperator\x18\x03 \x01(\tR\boperator\x12\x14\n" +
-	"\x05right\x18\x04 \x01(\x02R\x05right\x12\x19\n" +
+	"\x05right\x18\x04 \x01(\x01R\x05right\x12\x19\n" +
 	"\bhas_task\x18\x05 \x01(\bR\ahasTask\x12\x17\n" +
 	"\aexpr_id\x18\x06 \x01(\tR\x06exprId\x12%\n" +
 	"\x0eoperation_time\x18\a \x01(\x03R\roperationTime\"\x86\x01\n" +
@@ -298,7 +298,7 @@ const file_internal_proto_agent_proto_rawDesc = "" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x18\n" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x03 \x01(\tR\x05error\x12\x16\n" +
-	"\x06result\x18\x04 \x01(\x02R\x06result\x12\x17\n" +
+	"\x06result\x18\x04 \x01(\x01R\x06result\x12\x17\n" +
 	"\aexpr_id\x18\x05 \x01(\tR\x06exprId\"!\n" +
 	"\x03Ack\x12\x1a\n" +
 	"\baccepted\x18\x01 \x01(\bR\baccepted2o\n" +

@@ -20,7 +20,7 @@ type Operation struct {
 	Right         string   `json:"right"`
 	Operator      string   `json:"operator"`
 	Dependencies  []string `json:"dependencies"`
-	Result        float32  `json:"result"`
+	Result        float64  `json:"result"`
 	Error         string   `json:"error,omitempty"`
 	Status        string   `json:"status"`
 	OperationTime int64    `json:"operation_time"`

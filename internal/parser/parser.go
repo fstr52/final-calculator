@@ -8,14 +8,14 @@ import (
 )
 
 type Expr interface {
-	Eval() float32
+	Eval() float64
 }
 
 type Number struct {
-	Value float32
+	Value float64
 }
 
-func (n *Number) Eval() float32 {
+func (n *Number) Eval() float64 {
 	return n.Value
 }
 
@@ -25,7 +25,7 @@ type Binary struct {
 	Right  Expr
 }
 
-func (b *Binary) Eval() float32 {
+func (b *Binary) Eval() float64 {
 	switch b.Symbol.Type {
 	case TokenPlus:
 		return b.Left.Eval() + b.Right.Eval()
@@ -118,7 +118,7 @@ func (p *Parser) nud(tok Token) (Expr, error) {
 				"error", err)
 			return nil, err
 		}
-		return &Number{Value: float32(val)}, nil
+		return &Number{Value: val}, nil
 	case TokenLParen:
 		expr, err := p.parseExpr(0)
 		if err != nil {
