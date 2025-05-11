@@ -121,7 +121,7 @@
 
     Curl запрос:
     ```bash
-    curl --location "localhost:8080/api/v1/expressions"
+    curl --location "localhost:8080/api/v1/expressions" --header "Authorization: 743feiwsdkfj...4w2"
     ```
 
     Ответ:
@@ -147,7 +147,7 @@
 
     Curl запрос:
     ```bash
-    curl --location "localhost:8080/api/v1/expressions/:id"
+    curl --location "localhost:8080/api/v1/expressions/:id" --header "Authorization: 743feiwsdkfj...4w2"
     ```
 
     Ответ:
@@ -177,11 +177,14 @@
 
 Запрос: 
 ```bash
-curl --location "localhost:8080/api/v1/calculate" --header "Content-Type: application/json" --data "{\"expression\": \"2+3\"}"
+curl --location "localhost:8080/api/v1/calculate" --header "Content-Type: application/json" --header "Authorization: 743feiwsdkfj...4w2" --data "{\"expression\": \"2+3\"}"
 ```
 Ответ:
 ```json
-{"result":"5"}
+{
+    "id": "5c00db26-e4e2-4f47-8efb-107ca5bcd28e",
+    "status": "In Queue"
+}
 ```
 HTTP статус:
 ```
@@ -192,7 +195,7 @@ HTTP статус:
 1. **Неверное выражение** <br>
     Запрос: 
     ```bash
-    curl --location "localhost:8080/api/v1/calculate" --header "Content-Type: application/json" --data "{\"expression\": \"(2+3\"}"
+    curl --location "localhost:8080/api/v1/calculate" --header "Content-Type: application/json" --header "Authorization: 743feiwsdkfj...4w2" --data "{\"expression\": \"(2+3\"}"
     ```
     Ответ:
     ```
@@ -205,7 +208,7 @@ HTTP статус:
 2. **Неверный формат ввода**<br>
     Запрос: 
     ```bash
-    curl --location "localhost:8080/api/v1/calculate" --header "Content-Type: text/plain" --data "{\"expression\": \"2+3\"}"
+    curl --location "localhost:8080/api/v1/calculate" --header "Content-Type: text/plain" --header "Authorization: 743feiwsdkfj...4w2" --data "{\"expression\": \"2+3\"}"
     ```
     Ответ:
     ```
@@ -218,7 +221,7 @@ HTTP статус:
 3. **Неверный метод запроса**<br>
     Запрос: 
     ```bash
-    curl --location --request GET  "localhost:8080/api/v1/calculate"  --header "Content-Type: application/json"  --data "{\"expression\": \"2+3\"}"
+    curl --location --request GET  "localhost:8080/api/v1/calculate"  --header "Content-Type: application/json"  --header "Authorization: 743feiwsdkfj...4w2" --data "{\"expression\": \"2+3\"}"
     ```
     Ответ:
     ```
@@ -228,7 +231,20 @@ HTTP статус:
     ```
     405 Method Not Allowed
     ```
-4. **Непредвиденная ошибка**<br>
+4. **Нет токена в авторизации**<br>
+    Запрос: 
+    ```bash
+    curl --location --request GET  "localhost:8080/api/v1/calculate"  --header "Content-Type: application/json" --data "{\"expression\": \"2+3\"}"
+    ```
+    Ответ:
+    ```
+    Unauthorized
+    ```
+    HTTP статус:
+    ```
+    401 Unauthorized
+    ```
+5. **Непредвиденная ошибка**<br>
     Ответ:
     ```
     Internal server error
@@ -242,7 +258,8 @@ HTTP статус:
 
 - Поддерживаются стандартные арифметические операции (+, -, *, /)
 - Вычисления происходят ассинхронно
+- Есть унарный минус
 
 ## Контакты
 
-При появлении вопросов Вы можете обратиться к [автору](https://t.me/fstrrr)
+При появлении вопросов или нахождении ошибки (постараюсь исправить, Вы мне очень поможете) прошу обратиться к [автору](https://t.me/fstrrr)
