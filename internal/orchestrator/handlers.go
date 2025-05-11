@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/fstr52/final-calculator/internal/expression"
@@ -108,4 +109,57 @@ func ConvertExpressions(expressions []expression.Expression) []sendStruct {
 		}
 	}
 	return sendSlice
+}
+
+func (o *Orchestrator) ExpressionByIDHandler(c *gin.Context) {
+	userID, ok := c.Get("userID")
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "No userID in token"})
+		return
+	}
+
+	userIDString, ok := userID.(string)
+	if !ok {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Can't convert userID to string"})
+		return
+	}
+
+	url := c.Request.URL.Path
+	parts := strings.Split(url, "/")
+	if len(parts) < 4 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid URL format"})
+		return
+	}
+	exprIDpart := parts[len(parts)-1]
+	exprID := strings.TrimPrefix(exprIDpart, ":")
+
+	expr, err := o.exprStorage.FindOne(c.Request.Context(), exprID)
+	if err != nil {
+		o.logger.Error("Failed to find expression",
+			"id", exprID,
+			"error", err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Expression not found"})
+		return
+	}
+
+	if expr.UserID != userIDString {
+		o.logger.Warn("Unauthorized access attempt to expression",
+			"expression_id", exprID,
+			"requested_by", userIDString,
+			"owned_by", expr.UserID)
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	sendExpr := sendStruct{
+		ID:         expr.ID,
+		Status:     expr.Status,
+		Success:    expr.Success,
+		Result:     expr.Result,
+		Error:      expr.Error,
+		Expression: expr.Expression,
+		CreatedAt:  expr.CreatedAt,
+	}
+
+	c.JSON(http.StatusOK, gin.H{"expression": sendExpr})
 }
