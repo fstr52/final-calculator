@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -119,16 +120,44 @@ func (a *Agent) RunWorker(ctx context.Context, id string, host string, port stri
 			var result float32
 			switch task.Operator {
 			case "+":
-				result = left + right
+				sum := float64(left) + float64(right)
+				if sum > float64(math.MaxFloat32) {
+					err = errors.New("result is bigger than possible")
+				} else if sum < -float64(math.MaxFloat32) {
+					err = errors.New("result is lower than possible")
+				} else {
+					result = float32(sum)
+				}
 			case "-":
-				result = left - right
+				diff := float64(left) - float64(right)
+				if diff > float64(math.MaxFloat32) {
+					err = errors.New("result is bigger than possible")
+				} else if diff < -float64(math.MaxFloat32) {
+					err = errors.New("result is lower than possible")
+				} else {
+					result = float32(diff)
+				}
 			case "*":
-				result = left * right
+				prod := float64(left) * float64(right)
+				if prod > float64(math.MaxFloat32) {
+					err = errors.New("result is bigger than possible")
+				} else if prod < -float64(math.MaxFloat32) {
+					err = errors.New("result is lower than possible")
+				} else {
+					result = float32(prod)
+				}
 			case "/":
 				if right == 0 {
 					err = errors.New("division by zero")
 				} else {
-					result = left / right
+					div := float64(left) / float64(right)
+					if div > float64(math.MaxFloat32) {
+						err = errors.New("result is bigger than possible")
+					} else if div < -float64(math.MaxFloat32) {
+						err = errors.New("result is lower than possible")
+					} else {
+						result = float32(div)
+					}
 				}
 			}
 

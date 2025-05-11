@@ -1,7 +1,6 @@
 package orchestrator
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -103,8 +102,7 @@ func (a *AuthHandler) RegisterHandler(c *gin.Context) {
 		PasswordHash: string(hashedPassword),
 	}
 
-	_, err = a.userStorage.Create(context.TODO(), user)
-	if err != nil {
+	if _, err := a.userStorage.Create(c.Request.Context(), user); err != nil {
 		a.logger.Error("REGISTRATION ERR", "error", err)
 		if errors.Is(err, db.ErrUserAlreadyExists) {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
@@ -137,7 +135,7 @@ func (a *AuthHandler) LoginHandler(c *gin.Context) {
 		return
 	}
 
-	user, err := a.userStorage.FindByUsername(context.TODO(), logData.Login)
+	user, err := a.userStorage.FindByUsername(c.Request.Context(), logData.Login)
 	if err != nil {
 		a.logger.Warn("User not found", "login", logData.Login, "error", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid login or password"})

@@ -116,7 +116,7 @@ func main() {
 	<-stop
 	logger.Info("Shutdown signal received")
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer shutdownCancel()
 
 	cancel()

@@ -6,10 +6,11 @@ const (
 	StatusPending OperationStatus = iota
 	StatusReady
 	StatusDone
+	StatusError
 )
 
 func (o OperationStatus) String() string {
-	return []string{"Pending", "Ready", "Done"}[o]
+	return []string{"Pending", "Ready", "Done", "Error"}[o]
 }
 
 type Operation struct {
@@ -20,5 +21,6 @@ type Operation struct {
 	Operator     string   `json:"operator"`
 	Dependencies []string `json:"dependencies"`
 	Result       float32  `json:"result"`
+	Error        string   `json:"error,omitempty"`
 	Status       string   `json:"status"`
 }

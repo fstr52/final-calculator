@@ -23,6 +23,7 @@ type Orchestrator struct {
 
 	expressionQueue  []*ex.Expression
 	doneCache        map[string]float32
+	opErrorCache     map[string]string
 	pendingOps       map[string]op.Operation
 	expressionByRoot map[string]*ex.Expression
 	toSend           []op.Operation
@@ -39,6 +40,7 @@ func NewOrchestrator(logger logger.Logger, client postgresql.Client) *Orchestrat
 		logger:           logger,
 		expressionQueue:  make([]*ex.Expression, 0),
 		doneCache:        make(map[string]float32),
+		opErrorCache:     make(map[string]string),
 		pendingOps:       make(map[string]op.Operation),
 		expressionByRoot: make(map[string]*ex.Expression),
 		toSend:           make([]op.Operation, 0),
@@ -81,28 +83,44 @@ func (o *Orchestrator) restoreState(ctx context.Context) {
 
 		o.expressionByRoot[expr.RootOperationID] = expr
 
-		for _, op := range ops {
-			if op.Status == "done" {
+		for _, oper := range ops {
+			if oper.Status == "done" {
 				o.cacheMu.Lock()
-				o.doneCache[op.ID] = op.Result
+				o.doneCache[oper.ID] = oper.Result
+				o.cacheMu.Unlock()
+				continue
+			}
+			if oper.Status == op.StatusError.String() || oper.Status == "error" {
+				o.cacheMu.Lock()
+				o.opErrorCache[oper.ID] = oper.Error
 				o.cacheMu.Unlock()
 				continue
 			}
 
 			ready := true
+			failed := false
 			o.cacheMu.RLock()
-			for _, dep := range op.Dependencies {
+			for _, dep := range oper.Dependencies {
 				if _, ok := o.doneCache[dep]; !ok {
+					if _, fail := o.opErrorCache[dep]; fail {
+						failed = true
+						break
+					}
 					ready = false
 					break
 				}
 			}
 			o.cacheMu.RUnlock()
 
+			if failed {
+				_ = o.SetOperationError(ctx, oper.ID, "dependency failed during restore")
+				continue
+			}
+
 			if ready {
-				o.enqueue(op)
+				o.enqueue(oper)
 			} else {
-				o.pendingOps[op.ID] = op
+				o.pendingOps[oper.ID] = oper
 			}
 		}
 	}
@@ -110,7 +128,7 @@ func (o *Orchestrator) restoreState(ctx context.Context) {
 	o.logger.Info("State restored successfully")
 }
 
-func (o *Orchestrator) NewExpression(input string, userID string) (*ex.Expression, error) {
+func (o *Orchestrator) NewExpression(ctx context.Context, input string, userID string) (*ex.Expression, error) {
 	o.logger.Debug("Started NewExpression",
 		"input", input)
 	p := parser.NewParser(input, o.logger)
@@ -128,11 +146,11 @@ func (o *Orchestrator) NewExpression(input string, userID string) (*ex.Expressio
 		Expression: input,
 	}
 
-	if err = o.exprStorage.Create(context.TODO(), *expr); err != nil {
+	if err = o.exprStorage.Create(ctx, *expr); err != nil {
 		return nil, err
 	}
 
-	rootId := o.planOperations(expr, ast)
+	rootId := o.planOperations(ctx, expr, ast)
 	expr.RootOperationID = rootId
 
 	o.exprMu.Lock()
@@ -141,7 +159,7 @@ func (o *Orchestrator) NewExpression(input string, userID string) (*ex.Expressio
 	expr.Status = ex.StatusInQueue.String()
 	o.expressionByRoot[rootId] = expr
 
-	if err := o.UpdateExpression(context.TODO(), *expr); err != nil {
+	if err := o.UpdateExpression(ctx, *expr); err != nil {
 		return nil, err
 	}
 
@@ -150,7 +168,7 @@ func (o *Orchestrator) NewExpression(input string, userID string) (*ex.Expressio
 	return expr, nil
 }
 
-func (o *Orchestrator) planOperations(expr *ex.Expression, ast parser.Expr) string {
+func (o *Orchestrator) planOperations(ctx context.Context, expr *ex.Expression, ast parser.Expr) string {
 	switch n := ast.(type) {
 	case *parser.Number:
 		id := uuid.NewString()
@@ -159,16 +177,15 @@ func (o *Orchestrator) planOperations(expr *ex.Expression, ast parser.Expr) stri
 		o.cacheMu.Unlock()
 		return id
 	case *parser.Binary:
-		leftId := o.planOperations(expr, n.Left)
-		rightId := o.planOperations(expr, n.Right)
+		leftId := o.planOperations(ctx, expr, n.Left)
+		rightId := o.planOperations(ctx, expr, n.Right)
 
-		// Проверка на пустой id (!!!)
 		if leftId == "" || rightId == "" {
 			o.logger.Error("planOperations got empty left/rightId",
 				"leftId", leftId,
 				"rightId", rightId,
 				"op", n.Symbol.Value)
-			return "" // или panic, или лучше error!
+			return ""
 		}
 
 		id := uuid.NewString()
@@ -181,7 +198,7 @@ func (o *Orchestrator) planOperations(expr *ex.Expression, ast parser.Expr) stri
 			ExprID:       expr.ID,
 		}
 		oper.Status = op.StatusPending.String()
-		if err := o.opStorage.Create(context.TODO(), oper); err != nil {
+		if err := o.opStorage.Create(ctx, oper); err != nil {
 			o.logger.Error("Failed to save operation", "error", err)
 		}
 
@@ -191,7 +208,8 @@ func (o *Orchestrator) planOperations(expr *ex.Expression, ast parser.Expr) stri
 	default:
 		o.logger.Error("planOperations: unknown AST node type",
 			"type", fmt.Sprintf("%T", ast))
-		panic("unknown AST node type")
+		o.logger.Error("unknown AST node type")
+		return ""
 	}
 }
 
@@ -243,13 +261,13 @@ func (o *Orchestrator) startScheduler(ctx context.Context) {
 			o.logger.Debug("Scheduler stoped gracefully")
 			return
 		case <-ticker.C:
-			o.nextExpr()
-			o.processPending()
+			o.nextExpr(ctx)
+			o.processPending(ctx)
 		}
 	}
 }
 
-func (o *Orchestrator) nextExpr() {
+func (o *Orchestrator) nextExpr(ctx context.Context) {
 	if len(o.expressionQueue) == 0 {
 		return
 	}
@@ -261,20 +279,28 @@ func (o *Orchestrator) nextExpr() {
 
 	for _, op := range expr.Operations {
 		ready := true
+		failed := false
 
 		for _, dep := range op.Dependencies {
 			o.cacheMu.RLock()
-			done := false
-			if _, exists := o.doneCache[dep]; exists {
-				done = true
-			}
+			_, done := o.doneCache[dep]
+			_, errorDep := o.opErrorCache[dep]
 			o.cacheMu.RUnlock()
 
 			if !done {
-				o.logger.Debug("dep not done", "dep", dep)
+				if errorDep {
+					errMsg := fmt.Sprintf("dependency %s failed", dep)
+					_ = o.SetOperationError(ctx, op.ID, errMsg)
+					failed = true
+					break
+				}
 				ready = false
 				break
 			}
+		}
+
+		if failed {
+			continue
 		}
 
 		if ready {
@@ -285,7 +311,7 @@ func (o *Orchestrator) nextExpr() {
 	}
 }
 
-func (o *Orchestrator) processPending() {
+func (o *Orchestrator) processPending(ctx context.Context) {
 	if len(o.pendingOps) == 0 {
 		return
 	}
@@ -294,15 +320,28 @@ func (o *Orchestrator) processPending() {
 
 	for id, op := range o.pendingOps {
 		allReady := true
+		failed := false
+
 		for _, dep := range op.Dependencies {
 			o.cacheMu.RLock()
-			if _, done := o.doneCache[dep]; !done {
-				o.logger.Debug("dep not done", "dep", dep)
+			_, done := o.doneCache[dep]
+			_, errorDep := o.opErrorCache[dep]
+			o.cacheMu.RUnlock()
+
+			if !done {
+				if errorDep {
+					errMsg := fmt.Sprintf("dependency %s failed", dep)
+					_ = o.SetOperationError(ctx, id, errMsg)
+					toDelete = append(toDelete, id)
+					failed = true
+					break
+				}
 				allReady = false
-				o.cacheMu.RUnlock()
 				break
 			}
-			o.cacheMu.RUnlock()
+		}
+		if failed {
+			continue
 		}
 		if allReady {
 			o.logger.Debug("allReady", "op", op)
@@ -361,12 +400,13 @@ func (o *Orchestrator) SubmitResult(ctx context.Context, res *pr.TaskResult) (*p
 	ack := &pr.Ack{Accepted: true}
 
 	if res.Error != "" {
-		o.logger.Debug("res error",
-			"error", res.Error)
+		if err := o.SetOperationError(ctx, res.TaskId, res.Error); err != nil {
+			o.logger.Error("Failed to set op error", "opID", res.TaskId, "error", err)
+		}
+
 		if err := o.ErrorExpression(ctx, res.ExprId, res.Error); err != nil {
 			return ack, err
 		}
-
 		return ack, nil
 	}
 
@@ -395,7 +435,7 @@ func (o *Orchestrator) SubmitResult(ctx context.Context, res *pr.TaskResult) (*p
 		}
 	}
 
-	o.processPending()
+	o.processPending(ctx)
 	o.logger.Debug("SubmitResult finished")
 	return ack, nil
 }
@@ -429,4 +469,20 @@ func (o *Orchestrator) UpdateExpression(ctx context.Context, expr ex.Expression)
 	}
 
 	return nil
+}
+
+func (o *Orchestrator) SetOperationError(ctx context.Context, opID string, errMsg string) error {
+	oper, err := o.opStorage.FindOne(ctx, opID)
+	if err != nil {
+		o.logger.Error("Failed to find operation", "opID", opID, "error", err)
+		return err
+	}
+	oper.Status = op.StatusError.String()
+	oper.Error = errMsg
+
+	o.cacheMu.Lock()
+	o.opErrorCache[opID] = errMsg
+	o.cacheMu.Unlock()
+
+	return o.opStorage.Update(ctx, oper)
 }

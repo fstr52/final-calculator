@@ -50,6 +50,32 @@ func (s *storage) Create(ctx context.Context, op operation.Operation) error {
 	return nil
 }
 
+func (s *storage) FindOne(ctx context.Context, id string) (operation.Operation, error) {
+	q := `
+		SELECT
+			id,
+			expr_id,
+			left_operand,
+			right_operand,
+			operator,
+			dependencies,
+			result,
+			error,
+			status
+		FROM public.operations
+		WHERE expr_id = $1
+	`
+
+	var op operation.Operation
+
+	err := s.client.QueryRow(ctx, q, id).Scan(&op.ID, &op.ExprID, &op.Left, &op.Right, &op.Operator, &op.Dependencies, &op.Result, &op.Error, &op.Status)
+	if err != nil {
+		return operation.Operation{}, err
+	}
+
+	return op, nil
+}
+
 func (s *storage) Update(ctx context.Context, op operation.Operation) error {
 	q := `
 		UPDATE public.operations
@@ -85,6 +111,7 @@ func (s *storage) GetOperationsByExpression(ctx context.Context, exprID string) 
 			operator,
 			dependencies,
 			result,
+			error,
 			status
 		FROM public.operations
 		WHERE expr_id = $1
@@ -101,7 +128,7 @@ func (s *storage) GetOperationsByExpression(ctx context.Context, exprID string) 
 	for rows.Next() {
 		var op operation.Operation
 
-		err = rows.Scan(&op.ID, &op.ExprID, &op.Left, &op.Right, &op.Operator, &op.Dependencies, &op.Result, &op.Status)
+		err = rows.Scan(&op.ID, &op.ExprID, &op.Left, &op.Right, &op.Operator, &op.Dependencies, &op.Result, &op.Error, &op.Status)
 		if err != nil {
 			return nil, err
 		}

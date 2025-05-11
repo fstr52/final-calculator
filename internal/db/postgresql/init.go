@@ -35,6 +35,7 @@ func InitSchema(ctx context.Context, client Client) error {
                 operator VARCHAR(10),
                 dependencies UUID[],
                 result FLOAT,
+                error TEXT,
                 status VARCHAR(20),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );

@@ -119,7 +119,6 @@ func TestParser_ParseExpr(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewParser(tt.input, mockLogger)
 
-			// Обратите внимание: я удалил параметр input из вызова ParseExpr
 			expr, err := p.ParseExpr()
 
 			if tt.wantErr {
@@ -136,7 +135,6 @@ func TestParser_ParseExpr(t *testing.T) {
 	}
 }
 
-// Тест для проверки приоритета операций
 func TestParser_OperatorPrecedence(t *testing.T) {
 	mockLogger := &MockLogger{}
 
@@ -170,7 +168,6 @@ func TestParser_OperatorPrecedence(t *testing.T) {
 	}
 }
 
-// MockLogger - мок для интерфейса logger.Logger
 type MockLogger struct{}
 
 func (m *MockLogger) Debug(msg string, args ...any)       {}

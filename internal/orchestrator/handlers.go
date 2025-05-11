@@ -1,7 +1,6 @@
 package orchestrator
 
 import (
-	"context"
 	"net/http"
 	"sort"
 	"time"
@@ -47,7 +46,7 @@ func (o *Orchestrator) CalculateHandler(c *gin.Context) {
 		return
 	}
 
-	expr, err := o.NewExpression(userRequest.Expression, userIDString)
+	expr, err := o.NewExpression(c.Request.Context(), userRequest.Expression, userIDString)
 	if err != nil {
 		o.logger.Error("Failed to prepare input",
 			"expression", userRequest.Expression,
@@ -81,7 +80,7 @@ func (o *Orchestrator) ExpressionsHandler(c *gin.Context) {
 		return
 	}
 
-	expressions, err := o.exprStorage.FindAllByUser(context.TODO(), userIDString)
+	expressions, err := o.exprStorage.FindAllByUser(c.Request.Context(), userIDString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return

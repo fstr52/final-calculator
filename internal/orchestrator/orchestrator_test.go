@@ -131,6 +131,11 @@ func (m *MockOperationStorage) GetOperationsByExpression(ctx context.Context, ex
 	return args.Get(0).([]op.Operation), args.Error(1)
 }
 
+func (m *MockOperationStorage) FindOne(ctx context.Context, id string) (op.Operation, error) {
+	args := m.Called(ctx, id)
+	return args.Get(0).(op.Operation), args.Error(1)
+}
+
 func (m *MockOperationStorage) UpdateOperationResult(ctx context.Context, opID string, result float32, status string) error {
 	args := m.Called(ctx, opID, result, status)
 	return args.Error(0)

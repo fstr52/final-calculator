@@ -60,7 +60,6 @@ func NewParser(input string, logger logger.Logger) *Parser {
 func (p *Parser) ParseExpr() (Expr, error) {
 	p.logger.Debug("Started ParseExpr")
 
-	// Получаем первый токен, только если p.curr еще не инициализирован
 	if p.curr.Type == TokenEmpty {
 		curr, err := p.lexer.Next()
 		if err != nil {

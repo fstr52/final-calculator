@@ -5,223 +5,152 @@
     <title>Калькулятор</title>
     <style>
         body {
-            font-family: 'Segoe UI', Arial, sans-serif;
             background: #f6f8fa;
+            font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
         }
         .container {
-            max-width: 700px;
+            max-width: 1100px;
             margin: 40px auto;
             background: #fff;
-            border-radius: 9px;
-            box-shadow: 0 2px 8px #0001;
-            padding: 32px 28px 24px 28px;
+            border-radius: 14px;
+            box-shadow: 0 2px 8px #0002;
+            padding: 28px 20px 20px 20px;
         }
         h1 {
             text-align: center;
             color: #0a6c74;
-            font-size: 2em;
             margin-top: 0;
         }
-        .tabs {
-            display: flex;
-            margin-bottom: 1.5em;
-            justify-content: center;
-        }
-        .tab-btn {
-            flex: 1 1 0;
-            padding: 0.7em 0;
-            cursor: pointer;
-            background: #f1f1f1;
-            border: none;
-            font-size: 1.1em;
-            color: #0a6c74;
-            font-weight: bold;
-            border-radius: 7px 7px 0 0;
-            margin-right: 2px;
-            transition: background 0.18s;
-        }
-        .tab-btn:last-child { margin-right: 0; }
-        .tab-btn.active {
-            background: #0a6c74;
-            color: #fff;
-        }
-        .tab-content {
-            display: none;
-            padding: 1em 0 0.5em 0;
-        }
-        .tab-content.active {
-            display: block;
-        }
-        label {
-            display: block;
-            margin-bottom: 0.2em;
-            color: #444;
-        }
+        form { margin-bottom: 1em; }
+        label { display: block; margin-bottom: 0.3em; }
         input[type="text"], input[type="password"] {
-            width: 97%;
+            width: 95%;
             padding: 0.5em;
-            font-size: 1em;
-            margin-bottom: 0.7em;
-            border: 1px solid #ddd;
+            margin-bottom: 0.6em;
+            border: 1px solid #bcd;
             border-radius: 4px;
-            background: #f8fafb;
         }
         button {
-            padding: 0.6em 1.5em;
+            padding: 0.6em 1.2em;
             background: #0a6c74;
             color: #fff;
             border: none;
             border-radius: 4px;
             font-size: 1em;
             cursor: pointer;
-            margin-top: 0.2em;
         }
-        button:hover {
-            background: #4399a5;
-        }
-        .error {
-            color: #d7263d;
-            font-size: 0.98em;
-            margin-bottom: 0.2em;
-            text-align: center;
-        }
-        .success {
-            color: #16a34a;
-            font-size: 0.98em;
-            margin-bottom: 0.2em;
-            text-align: center;
-        }
-        #welcome-section {
-            text-align: center;
-        }
-        #logout-btn {
-            margin-left: 1em;
-            background: #e0a103;
-        }
-        #logout-btn:hover {
-            background: #f7c843;
-            color: #333;
-        }
-        #calc-result {
-            min-height: 1.1em;
-            margin-bottom: 1em;
-            color: #0a6c74;
-            font-size: 1.1em;
-            text-align: center;
-        }
-        #history-block {
-            background: #f8fafb;
-            border-radius: 16px;
-            margin-top: 1em;
-            padding: 0.2em 0.3em 0.7em 0.3em;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        #history-block table {
+        button:hover { background: #4399a5; }
+        .error { color: #d7263d; margin: 0.5em 0 0.3em 0; }
+        .success { color: #16a34a; margin: 0.5em 0 0.3em 0; }
+        #welcome-section { margin-bottom: 1.5em; }
+        #user-name { font-weight: bold; color: #0a6c74; }
+        #history-table-wrapper {
             width: 100%;
-            max-width: 100%;
+            display: flex;
+            justify-content: center;
+            margin-top: 1.2em;
+            overflow-x: auto;
+            border-radius: 14px;
+        }
+        #history-table {
+            min-width: 780px;
+            width: 100%;
             border-collapse: separate;
             border-spacing: 0;
-            font-size: 0.97em;
             background: #f8fafb;
-            margin: 0 auto;
-            border-radius: 16px;
+            font-size: 0.98em;
+            border: 2.5px solid #0a6c74;
+            border-radius: 14px;
             overflow: hidden;
             box-shadow: 0 2px 8px #0001;
+            table-layout: fixed;
         }
-        #history-block th, #history-block td {
-            border-bottom: 1.5px solid #444;
-            padding: 0.36em 0.7em;
-            text-align: left;
-            white-space: nowrap;
-            max-width: 130px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            background: #f8fafb;
-        }
-        #history-block th {
-            background: #e6f3f4;
-            color: #0a6c74;
-            font-weight: bold;
-            font-size: 1em;
+        #history-table th, #history-table td {
+            border: 1px solid #bbb;
+            border-left: none;
             border-top: none;
+            padding: 0.33em 0.4em;
+            text-align: left;
+            vertical-align: top;
+            background: #f8fafb;
+            overflow: hidden;
+            word-break: break-word;
+            white-space: pre-line;
         }
-        #history-block tr:last-child td {
-            border-bottom: none;
+        #history-table th { background: #e6f3f4; color: #0a6c74; font-weight: bold; font-size: 0.97em; }
+        #history-table th, #history-table td { min-width: 60px; }
+        #history-table th.id, #history-table td.id { width: 80px; }
+        #history-table th.expr, #history-table td.expr { width: 140px; }
+        #history-table th.status, #history-table td.status { width: 70px; }
+        #history-table th.ok, #history-table td.ok { width: 70px; }
+        #history-table th.dt, #history-table td.dt { width: 120px; }
+        #history-table th.err, #history-table td.err,
+        #history-table th.res, #history-table td.res {
+            min-width: 120px;
+            max-width: 500px;
+            white-space: pre-line;
+            word-break: break-word;
         }
-        #history-block th:first-child {
-            border-top-left-radius: 14px;
+        /* Округляем внешние углы таблицы */
+        #history-table th:first-child { border-top-left-radius: 12px; }
+        #history-table th:last-child { border-top-right-radius: 12px; }
+        #history-table tr:last-child td:first-child { border-bottom-left-radius: 12px; }
+        #history-table tr:last-child td:last-child { border-bottom-right-radius: 12px; }
+        #history-table th:last-child, #history-table td:last-child { border-right: none; }
+        #history-table tr:last-child td { border-bottom: none; }
+        @media (max-width: 1200px) {
+            .container { max-width: 99vw; padding: 2vw; }
         }
-        #history-block th:last-child {
-            border-top-right-radius: 14px;
+        @media (max-width: 900px) {
+            #history-table { font-size: 0.92em; min-width: 600px; }
         }
-        #history-block tr:last-child td:first-child {
-            border-bottom-left-radius: 14px;
-        }
-        #history-block tr:last-child td:last-child {
-            border-bottom-right-radius: 14px;
-        }
-        @media (max-width:900px) {
-            .container { max-width: 98vw; }
-            #history-block th, #history-block td { font-size: 0.92em; max-width: 90px; }
-        }
-        @media (max-width:600px) {
-            .container { max-width: 99vw; padding: 8vw 2vw 8vw 2vw; }
-            #history-block th, #history-block td { font-size: 0.85em; max-width: 70px; }
+        @media (max-width: 700px) {
+            #history-table { font-size: 0.85em; min-width: 500px; }
         }
     </style>
 </head>
 <body>
 <div class="container">
     <h1>Калькулятор</h1>
-
     <div id="auth-section">
-        <div class="tabs">
-            <button class="tab-btn active" data-tab="login-tab">Вход</button>
-            <button class="tab-btn" data-tab="register-tab">Регистрация</button>
+        <div style="margin-bottom:1em;">
+            <button onclick="showTab('login')">Вход</button>
+            <button onclick="showTab('register')">Регистрация</button>
         </div>
-        <div id="login-tab" class="tab-content active">
+        <div id="login-tab">
             <form id="login-form">
-                <label for="login-username">Логин</label>
-                <input type="text" id="login-username" required autocomplete="username">
-                <label for="login-password">Пароль</label>
-                <input type="password" id="login-password" required autocomplete="current-password">
+                <label>Логин: <input type="text" id="login-username" required></label>
+                <label>Пароль: <input type="password" id="login-password" required></label>
                 <button type="submit">Войти</button>
             </form>
             <div id="login-error" class="error"></div>
         </div>
-        <div id="register-tab" class="tab-content">
+        <div id="register-tab" style="display:none;">
             <form id="register-form">
-                <label for="register-username">Логин</label>
-                <input type="text" id="register-username" required autocomplete="username">
-                <label for="register-password">Пароль</label>
-                <input type="password" id="register-password" required autocomplete="new-password">
+                <label>Логин: <input type="text" id="register-username" required></label>
+                <label>Пароль: <input type="password" id="register-password" required></label>
                 <button type="submit">Зарегистрироваться</button>
             </form>
             <div id="register-error" class="error"></div>
             <div id="register-success" class="success"></div>
         </div>
     </div>
-
     <div id="welcome-section" style="display:none;">
-        <div>
-            <span>Привет, <b id="user-name"></b>!</span>
-            <button id="logout-btn">Выйти</button>
+        <div style="margin-bottom: 1em;">
+            Привет, <span id="user-name"></span>!
+            <button id="logout-btn" style="background:#e0a103; margin-left:1em;">Выйти</button>
         </div>
-        <div class="api-block">
-            <form id="calc-form">
-                <label for="expression">Выражение:</label>
-                <input type="text" id="expression" required placeholder="2+2*2">
-                <button type="submit">Вычислить</button>
-            </form>
-            <div id="calc-result"></div>
-        </div>
-        <h2 style="margin-bottom:0.3em;">История вычислений</h2>
-        <button id="refresh-btn" style="margin-bottom:0.8em;">Обновить</button>
-        <div id="history-block">
+        <form id="calc-form">
+            <label>Выражение:
+                <input type="text" id="expression" required>
+            </label>
+            <button type="submit">Вычислить</button>
+        </form>
+        <div id="calc-result"></div>
+        <button id="refresh-btn" style="margin-top:1em;">Обновить историю</button>
+        <div id="history-table-wrapper">
             <table id="history-table"></table>
         </div>
     </div>
@@ -229,14 +158,10 @@
 <script>
 const API = '/api/v1';
 
-document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.onclick = function() {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-        btn.classList.add('active');
-        document.getElementById(btn.dataset.tab).classList.add('active');
-    };
-});
+function showTab(tab) {
+    document.getElementById('login-tab').style.display = tab === 'login' ? '' : 'none';
+    document.getElementById('register-tab').style.display = tab === 'register' ? '' : 'none';
+}
 
 document.getElementById('login-form').onsubmit = async function(e) {
     e.preventDefault();
@@ -244,7 +169,8 @@ document.getElementById('login-form').onsubmit = async function(e) {
     const password = document.getElementById('login-password').value;
     const errDiv = document.getElementById('login-error');
     errDiv.textContent = '';
-    try {const resp = await fetch(API + '/login', {
+    try {
+        const resp = await fetch(API + '/login', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({login, password})
@@ -321,7 +247,6 @@ document.getElementById('calc-form').onsubmit = async function(e) {
     }
 };
 
-// Кнопка обновления истории
 document.getElementById('refresh-btn').onclick = fetchHistory;
 
 function shortId(id) {
@@ -329,11 +254,12 @@ function shortId(id) {
     return id.slice(0,5) + '...' + id.slice(-3);
 }
 
+// Форматируем дату: первая строка - время, вторая - дата
 function formatDate(isoString) {
     if (!isoString) return '';
     const d = new Date(isoString);
     const pad = n => n.toString().padStart(2, '0');
-    return `${pad(d.getHours())}:${pad(d.getMinutes())} ${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()}`;
+    return `<div>${pad(d.getHours())}:${pad(d.getMinutes())}</div><div>${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()}</div>`;
 }
 
 async function fetchHistory() {
@@ -350,13 +276,13 @@ async function fetchHistory() {
         if (data.expressions && data.expressions.length) {
             table.innerHTML =
                 `<tr>
-                    <th>ID</th>
-                    <th>Выраж.</th>
-                    <th>Статус</th>
-                    <th>Рез.</th>
-                    <th>Успех</th>
-                    <th>Ошибка</th>
-                    <th>Дата</th>
+                    <th class="id">ID</th>
+                    <th class="expr">Выраж.</th>
+                    <th class="status">Статус</th>
+                    <th class="res">Рез.</th>
+                    <th class="ok">Успех</th>
+                    <th class="err">Ошибка</th>
+                    <th class="dt">Дата</th>
                 </tr>`;
             data.expressions.reverse().forEach(expr => {
                 let result = '';
@@ -373,24 +299,24 @@ async function fetchHistory() {
                 }
                 table.innerHTML +=
                     `<tr>
-                        <td>${shortId(expr.id)}</td>
-                        <td style="color:#0a6c74">${expr.expression || ''}</td>
-                        <td>${expr.status || ''}</td>
-                        <td>${result}</td>
-                        <td>${success}</td>
-                        <td style="color:#d7263d;max-width:90px;">${error}</td>
-                        <td style="color:#aaa;max-width:120px;">${formatDate(expr.created_at)}</td>
+                        <td class="id">${shortId(expr.id)}</td>
+                        <td class="expr">${expr.expression || ''}</td>
+                        <td class="status">${expr.status || ''}</td>
+                        <td class="res">${result}</td>
+                        <td class="ok">${success}</td>
+                        <td class="err">${error}</td>
+                        <td class="dt">${formatDate(expr.created_at)}</td>
                     </tr>`;
             });
         } else {
             table.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#aaa">История пуста</td></tr>';
         }
     } catch (err) {
-        table.innerHTML = `<tr><td colspan="7" style="color:#d7263d;text-align:center">${err.message}</td></tr>`;
+        table.innerHTML = `<tr><td colspan="7" class="error" style="text-align:center">${err.message}</td></tr>`;
     }
 }
 
-// Показываем welcome при наличии токена
+// При запуске — если есть токен, показываем welcome
 if (localStorage.getItem('token')) showWelcome();
 </script>
 </body>

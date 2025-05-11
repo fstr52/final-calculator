@@ -29,6 +29,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      GIN_MODE: release
       ORCHESTRATOR_PORT: 8080
       DB_HOST: postgres
       DB_PORT: 5432
