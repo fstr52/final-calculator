@@ -25,11 +25,11 @@ func NewStorage(client postgresql.Client, logger logger.Logger) *storage {
 
 func (s *storage) Create(ctx context.Context, op operation.Operation) error {
 	q := `
-		INSERT INTO public.operations (id, expr_id, left_operand, right_operand, operator, dependencies, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO public.operations (id, expr_id, left_operand, right_operand, operator, dependencies, status, operation_time)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
-	_, err := s.client.Exec(ctx, q, op.ID, op.ExprID, op.Left, op.Right, op.Operator, op.Dependencies, op.Status)
+	_, err := s.client.Exec(ctx, q, op.ID, op.ExprID, op.Left, op.Right, op.Operator, op.Dependencies, op.Status, op.OperationTime)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -61,14 +61,27 @@ func (s *storage) FindOne(ctx context.Context, id string) (operation.Operation, 
 			dependencies,
 			result,
 			error,
-			status
+			status,
+			operation_time
 		FROM public.operations
 		WHERE expr_id = $1
 	`
 
 	var op operation.Operation
 
-	err := s.client.QueryRow(ctx, q, id).Scan(&op.ID, &op.ExprID, &op.Left, &op.Right, &op.Operator, &op.Dependencies, &op.Result, &op.Error, &op.Status)
+	err := s.client.QueryRow(ctx, q, id).Scan(
+		&op.ID,
+		&op.ExprID,
+		&op.Left,
+		&op.Right,
+		&op.Operator,
+		&op.Dependencies,
+		&op.Result,
+		&op.Error,
+		&op.Status,
+		&op.OperationTime,
+	)
+
 	if err != nil {
 		return operation.Operation{}, err
 	}
@@ -85,11 +98,21 @@ func (s *storage) Update(ctx context.Context, op operation.Operation) error {
 			operator = $4,
 			dependencies = $5,
 			result = $6,
-			status = $7
-		WHERE id = $8
+			status = $7,
+			operation_time = $8
+		WHERE id = $9
 	`
 
-	result, err := s.client.Exec(ctx, q, op.ExprID, op.Left, op.Right, op.Operator, op.Dependencies, op.Result, op.Status, op.ID)
+	result, err := s.client.Exec(ctx, q,
+		op.ExprID,
+		op.Left,
+		op.Right,
+		op.Operator,
+		op.Dependencies,
+		op.Result,
+		op.Status,
+		op.OperationTime,
+		op.ID)
 	if err != nil {
 		return err
 	}
@@ -112,7 +135,8 @@ func (s *storage) GetOperationsByExpression(ctx context.Context, exprID string) 
 			dependencies,
 			result,
 			error,
-			status
+			status,
+			operation_time
 		FROM public.operations
 		WHERE expr_id = $1
 	`
@@ -128,7 +152,19 @@ func (s *storage) GetOperationsByExpression(ctx context.Context, exprID string) 
 	for rows.Next() {
 		var op operation.Operation
 
-		err = rows.Scan(&op.ID, &op.ExprID, &op.Left, &op.Right, &op.Operator, &op.Dependencies, &op.Result, &op.Error, &op.Status)
+		err = rows.Scan(
+			&op.ID,
+			&op.ExprID,
+			&op.Left,
+			&op.Right,
+			&op.Operator,
+			&op.Dependencies,
+			&op.Result,
+			&op.Error,
+			&op.Status,
+			&op.OperationTime,
+		)
+
 		if err != nil {
 			return nil, err
 		}

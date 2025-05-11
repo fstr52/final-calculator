@@ -118,6 +118,9 @@ func (a *Agent) RunWorker(ctx context.Context, id string, host string, port stri
 			right := task.Right
 
 			var result float32
+
+			timer := time.NewTimer(time.Duration(task.OperationTime * time.Hour.Milliseconds()))
+
 			switch task.Operator {
 			case "+":
 				sum := float64(left) + float64(right)
@@ -159,6 +162,14 @@ func (a *Agent) RunWorker(ctx context.Context, id string, host string, port stri
 						result = float32(div)
 					}
 				}
+			}
+
+			select {
+			case <-ctx.Done():
+				a.logger.Info("Worker stopping during task execution", "worker_id", id)
+				return nil
+			case <-timer.C:
+				a.logger.Debug("Worker time completed")
 			}
 
 			if err != nil {

@@ -17,9 +17,17 @@ import (
 	"github.com/google/uuid"
 )
 
+type OperationsConfig struct {
+	TimeAdditionMS        int64
+	TimeSubtractionMS     int64
+	TimeMultiplicationsMS int64
+	TimeDivisionsMS       int64
+}
+
 type Orchestrator struct {
 	pr.OrchestratorServiceServer
 	logger logger.Logger
+	oc     OperationsConfig
 
 	expressionQueue  []*ex.Expression
 	doneCache        map[string]float32
@@ -35,7 +43,7 @@ type Orchestrator struct {
 	sendMu  sync.Mutex
 }
 
-func NewOrchestrator(logger logger.Logger, client postgresql.Client) *Orchestrator {
+func NewOrchestrator(logger logger.Logger, client postgresql.Client, oc OperationsConfig) *Orchestrator {
 	return &Orchestrator{
 		logger:           logger,
 		expressionQueue:  make([]*ex.Expression, 0),
@@ -188,15 +196,29 @@ func (o *Orchestrator) planOperations(ctx context.Context, expr *ex.Expression, 
 			return ""
 		}
 
+		var opTime int64
+		switch n.Symbol.Value {
+		case "+":
+			opTime = o.oc.TimeAdditionMS
+		case "-":
+			opTime = o.oc.TimeSubtractionMS
+		case "*":
+			opTime = o.oc.TimeMultiplicationsMS
+		case "/":
+			opTime = o.oc.TimeDivisionsMS
+		}
+
 		id := uuid.NewString()
 		oper := op.Operation{
-			ID:           id,
-			Left:         leftId,
-			Operator:     n.Symbol.Value,
-			Right:        rightId,
-			Dependencies: []string{leftId, rightId},
-			ExprID:       expr.ID,
+			ID:            id,
+			Left:          leftId,
+			Operator:      n.Symbol.Value,
+			Right:         rightId,
+			Dependencies:  []string{leftId, rightId},
+			ExprID:        expr.ID,
+			OperationTime: opTime,
 		}
+
 		oper.Status = op.StatusPending.String()
 		if err := o.opStorage.Create(ctx, oper); err != nil {
 			o.logger.Error("Failed to save operation", "error", err)

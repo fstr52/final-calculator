@@ -18,6 +18,7 @@ message Task {
     float right = 4;
     bool has_task = 5;
     string expr_id = 6;
+    int64 operation_time = 7;
 }
 
 message TaskResult {

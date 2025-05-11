@@ -73,6 +73,7 @@ type Task struct {
 	Right         float32                `protobuf:"fixed32,4,opt,name=right,proto3" json:"right,omitempty"`
 	HasTask       bool                   `protobuf:"varint,5,opt,name=has_task,json=hasTask,proto3" json:"has_task,omitempty"`
 	ExprId        string                 `protobuf:"bytes,6,opt,name=expr_id,json=exprId,proto3" json:"expr_id,omitempty"`
+	OperationTime int64                  `protobuf:"varint,7,opt,name=operation_time,json=operationTime,proto3" json:"operation_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -147,6 +148,13 @@ func (x *Task) GetExprId() string {
 		return x.ExprId
 	}
 	return ""
+}
+
+func (x *Task) GetOperationTime() int64 {
+	if x != nil {
+		return x.OperationTime
+	}
+	return 0
 }
 
 type TaskResult struct {
@@ -276,14 +284,15 @@ const file_internal_proto_agent_proto_rawDesc = "" +
 	"\x1ainternal/proto/agent.proto\x12\x05agent\")\n" +
 	"\n" +
 	"WorkerInfo\x12\x1b\n" +
-	"\tworker_id\x18\x01 \x01(\tR\bworkerId\"\x99\x01\n" +
+	"\tworker_id\x18\x01 \x01(\tR\bworkerId\"\xc0\x01\n" +
 	"\x04Task\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x12\n" +
 	"\x04left\x18\x02 \x01(\x02R\x04left\x12\x1a\n" +
 	"\boperator\x18\x03 \x01(\tR\boperator\x12\x14\n" +
 	"\x05right\x18\x04 \x01(\x02R\x05right\x12\x19\n" +
 	"\bhas_task\x18\x05 \x01(\bR\ahasTask\x12\x17\n" +
-	"\aexpr_id\x18\x06 \x01(\tR\x06exprId\"\x86\x01\n" +
+	"\aexpr_id\x18\x06 \x01(\tR\x06exprId\x12%\n" +
+	"\x0eoperation_time\x18\a \x01(\x03R\roperationTime\"\x86\x01\n" +
 	"\n" +
 	"TaskResult\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x18\n" +

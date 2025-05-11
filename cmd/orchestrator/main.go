@@ -75,7 +75,14 @@ func main() {
 			"error", err)
 	}
 
-	o := orchestrator.NewOrchestrator(logger, pgClient)
+	oc := orchestrator.OperationsConfig{
+		TimeAdditionMS:        cfg.Orchestrator.TimeAdditionMS,
+		TimeSubtractionMS:     cfg.Orchestrator.TimeSubtractionMS,
+		TimeMultiplicationsMS: cfg.Orchestrator.TimeMultiplicationsMS,
+		TimeDivisionsMS:       cfg.Orchestrator.TimeDivisionsMS,
+	}
+
+	o := orchestrator.NewOrchestrator(logger, pgClient, oc)
 	grpcServer := grpc.NewServer()
 	pr.RegisterOrchestratorServiceServer(grpcServer, o)
 
