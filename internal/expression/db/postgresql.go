@@ -16,38 +16,38 @@ type storage struct {
 	client postgresql.Client
 }
 
-func NewStorage(client postgresql.Client) *storage {
+func NewStorage(client postgresql.Client, logger logger.Logger) *storage {
 	return &storage{
+		logger: logger,
 		client: client,
 	}
 }
 
-func (s *storage) Create(ctx context.Context, expr expression.Expression) (string, error) {
+func (s *storage) Create(ctx context.Context, expr expression.Expression) error {
 	q := `
-		INSERT INTO public.expressions (user_id, expression, status)
-		VALUES ($1, $2, $3)
-		RETURNING id
+		INSERT INTO public.expressions (id, user_id, root_operation_id, status, expression)
+		VALUES ($1, $2, $3, $4, $5)
 	`
 
-	if err := s.client.QueryRow(ctx, q, expr.UserID, expr.Expression, expr.Status).Scan(&expr.ID); err != nil {
+	_, err := s.client.Exec(ctx, q, expr.ID, expr.UserID, expr.RootOperationID, expr.Status, expr.Expression)
+	if err != nil {
 		var pgErr *pgconn.PgError
-		if errors.Is(err, pgErr) {
-			pgErr = err.(*pgconn.PgError)
+		if errors.As(err, &pgErr) {
 			s.logger.Error("SQL Error",
-				"error", pgErr.Message,
+				"message", pgErr.Message,
 				"detail", pgErr.Detail,
 				"where", pgErr.Where,
 				"code", pgErr.Code,
 				"SQLState", pgErr.SQLState())
-			return "", nil
-		} else {
-			s.logger.Error("Create error",
-				"error", err)
-			return "", err
+			return fmt.Errorf("sql error: %w", pgErr)
 		}
+
+		s.logger.Error("Create expression error",
+			"error", err)
+		return err
 	}
 
-	return expr.ID, nil
+	return nil
 }
 
 func (s *storage) FindAll(ctx context.Context) (e []expression.Expression, err error) {
@@ -57,6 +57,7 @@ func (s *storage) FindAll(ctx context.Context) (e []expression.Expression, err e
 			user_id,
 			expression,
 			status,
+			success,
 			error,
 			result,
 			created_at
@@ -72,7 +73,7 @@ func (s *storage) FindAll(ctx context.Context) (e []expression.Expression, err e
 	for rows.Next() {
 		var expr expression.Expression
 
-		err = rows.Scan(&expr.ID, &expr.UserID, &expr.Expression, &expr.Status, &expr.Error, &expr.Result, &expr.CreatedAt)
+		err = rows.Scan(&expr.ID, &expr.UserID, &expr.Expression, &expr.Status, &expr.Success, &expr.Error, &expr.Result, &expr.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -94,6 +95,7 @@ func (s *storage) FindAllByUser(ctx context.Context, userId string) (e []express
 			user_id,
 			expression,
 			status,
+			success,
 			error,
 			result,
 			created_at
@@ -105,13 +107,14 @@ func (s *storage) FindAllByUser(ctx context.Context, userId string) (e []express
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	exprs := make([]expression.Expression, 0)
 
 	for rows.Next() {
 		var expr expression.Expression
 
-		err = rows.Scan(&expr.ID, &expr.UserID, &expr.Expression, &expr.Status, &expr.Error, &expr.Result, &expr.CreatedAt)
+		err = rows.Scan(&expr.ID, &expr.UserID, &expr.Expression, &expr.Status, &expr.Success, &expr.Error, &expr.Result, &expr.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -133,6 +136,7 @@ func (s *storage) FindOne(ctx context.Context, id string) (expression.Expression
 			user_id,
 			expression,
 			status,
+			success,
 			error,
 			result,
 			created_at
@@ -142,7 +146,7 @@ func (s *storage) FindOne(ctx context.Context, id string) (expression.Expression
 
 	var expr expression.Expression
 
-	err := s.client.QueryRow(ctx, q).Scan(&expr)
+	err := s.client.QueryRow(ctx, q, id).Scan(&expr.ID, &expr.UserID, &expr.Expression, &expr.Status, &expr.Success, &expr.Error, &expr.Result, &expr.CreatedAt)
 	if err != nil {
 		return expression.Expression{}, err
 	}
@@ -156,12 +160,13 @@ func (s *storage) Update(ctx context.Context, expr expression.Expression) error 
 		SET user_id = $1,
 			expression = $2,
 			status = $3,
-			error = $4,
-			result = %5,
-		WHERE id = $6
+			success = $4,
+			error = $5,
+			result = $6
+		WHERE id = $7
 	`
 
-	result, err := s.client.Exec(ctx, q, expr.UserID, expr.Expression, expr.Status, expr.Error, expr.Result, expr.ID)
+	result, err := s.client.Exec(ctx, q, expr.UserID, expr.Expression, expr.Status, expr.Success, expr.Error, expr.Result, expr.ID)
 	if err != nil {
 		return err
 	}
@@ -190,4 +195,55 @@ func (s *storage) Delete(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+func (s *storage) GetUnfinishedExpressions(ctx context.Context) ([]*expression.Expression, error) {
+	q := `
+        SELECT
+            id,
+            user_id,
+            root_operation_id,
+            status,
+            success,
+            result,
+            error,
+            expression,
+            created_at
+		FROM public.expressions
+		WHERE status NOT IN ('Done', 'Error')
+    `
+
+	rows, err := s.client.Query(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query unfinished expressions: %w", err)
+	}
+	defer rows.Close()
+
+	var expressions []*expression.Expression
+
+	for rows.Next() {
+		var expr expression.Expression
+		err := rows.Scan(
+			&expr.ID,
+			&expr.UserID,
+			&expr.RootOperationID,
+			&expr.Status,
+			&expr.Success,
+			&expr.Result,
+			&expr.Error,
+			&expr.Expression,
+			&expr.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan expression row: %w", err)
+		}
+
+		expressions = append(expressions, &expr)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	return expressions, nil
 }

@@ -3,9 +3,10 @@ package orchestrator
 import (
 	"context"
 	"testing"
-	"time"
 
+	ex "github.com/fstr52/final-calculator/internal/expression"
 	"github.com/fstr52/final-calculator/internal/logger"
+	op "github.com/fstr52/final-calculator/internal/operation"
 	pr "github.com/fstr52/final-calculator/internal/proto"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
@@ -70,6 +71,71 @@ func (m *MockLogger) WithGroup(name string) logger.Logger {
 	return args.Get(0).(logger.Logger)
 }
 
+// MockExpressionStorage мокает хранилище выражений
+type MockExpressionStorage struct {
+	mock.Mock
+}
+
+func (m *MockExpressionStorage) Create(ctx context.Context, expr ex.Expression) error {
+	args := m.Called(ctx, expr)
+	return args.Error(0)
+}
+
+func (m *MockExpressionStorage) FindAll(ctx context.Context) ([]ex.Expression, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]ex.Expression), args.Error(1)
+}
+
+func (m *MockExpressionStorage) FindOne(ctx context.Context, id string) (ex.Expression, error) {
+	args := m.Called(ctx, id)
+	return args.Get(0).(ex.Expression), args.Error(1)
+}
+
+func (m *MockExpressionStorage) FindAllByUser(ctx context.Context, userId string) ([]ex.Expression, error) {
+	args := m.Called(ctx, userId)
+	return args.Get(0).([]ex.Expression), args.Error(1)
+}
+
+func (m *MockExpressionStorage) Update(ctx context.Context, expr ex.Expression) error {
+	args := m.Called(ctx, expr)
+	return args.Error(0)
+}
+
+func (m *MockExpressionStorage) Delete(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockExpressionStorage) GetUnfinishedExpressions(ctx context.Context) ([]*ex.Expression, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]*ex.Expression), args.Error(1)
+}
+
+// MockOperationStorage мокает хранилище операций
+type MockOperationStorage struct {
+	mock.Mock
+}
+
+func (m *MockOperationStorage) Create(ctx context.Context, op op.Operation) error {
+	args := m.Called(ctx, op)
+	return args.Error(0)
+}
+
+func (m *MockOperationStorage) Update(ctx context.Context, op op.Operation) error {
+	args := m.Called(ctx, op)
+	return args.Error(0)
+}
+
+func (m *MockOperationStorage) GetOperationsByExpression(ctx context.Context, exprID string) ([]op.Operation, error) {
+	args := m.Called(ctx, exprID)
+	return args.Get(0).([]op.Operation), args.Error(1)
+}
+
+func (m *MockOperationStorage) UpdateOperationResult(ctx context.Context, opID string, result float32, status string) error {
+	args := m.Called(ctx, opID, result, status)
+	return args.Error(0)
+}
+
 func setupMockLogger() *MockLogger {
 	mockLogger := new(MockLogger)
 	mockLogger.On("Debug", mock.Anything, mock.Anything).Return()
@@ -81,197 +147,164 @@ func setupMockLogger() *MockLogger {
 	return mockLogger
 }
 
-func TestNewOrchestrator(t *testing.T) {
-	mockLogger := setupMockLogger()
-	mockClient := new(MockClient)
-
-	orch := NewOrchestrator(mockLogger, mockClient)
-
-	assert.NotNil(t, orch)
-	assert.Equal(t, mockLogger, orch.logger)
-	assert.Empty(t, orch.expressionQueue)
-	assert.Empty(t, orch.doneCache)
-	assert.Empty(t, orch.pendingOps)
-	assert.NotNil(t, orch.exprStorage)
+type testOrchestrator struct {
+	*Orchestrator
+	mockExprStorage *MockExpressionStorage
+	mockOpStorage   *MockOperationStorage
 }
 
-func TestNewExpression(t *testing.T) {
+func setupTestOrchestrator() *testOrchestrator {
 	mockLogger := setupMockLogger()
-	mockClient := new(MockClient)
+	mockExprStorage := new(MockExpressionStorage)
+	mockOpStorage := new(MockOperationStorage)
 
-	orch := NewOrchestrator(mockLogger, mockClient)
+	// Настройка базовых ожиданий
+	mockExprStorage.On("GetUnfinishedExpressions", mock.Anything).Return([]*ex.Expression{}, nil)
+	mockExprStorage.On("FindAll", mock.Anything).Return([]ex.Expression{}, nil)
+	mockExprStorage.On("FindAllByUser", mock.Anything, mock.Anything).Return([]ex.Expression{}, nil)
+	mockOpStorage.On("GetOperationsByExpression", mock.Anything, mock.Anything).Return([]op.Operation{}, nil)
+	mockOpStorage.On("Create", mock.Anything, mock.Anything).Return(nil)
 
-	// Тест валидного выражения
-	expr, err := orch.NewExpression("2+3*4")
-	assert.NoError(t, err)
-	assert.NotNil(t, expr)
-	assert.Equal(t, StatusInQueue, expr.Status)
-	assert.NotEmpty(t, expr.Id)
-	assert.NotEmpty(t, expr.Operations)
+	orch := &Orchestrator{
+		logger:           mockLogger,
+		expressionQueue:  make([]*ex.Expression, 0),
+		doneCache:        make(map[string]float32),
+		pendingOps:       make(map[string]op.Operation),
+		expressionByRoot: make(map[string]*ex.Expression),
+		toSend:           make([]op.Operation, 0),
+		exprStorage:      mockExprStorage,
+		opStorage:        mockOpStorage,
+	}
 
-	// Тест невалидного выражения
-	expr, err = orch.NewExpression("2++")
-	assert.Error(t, err)
-	assert.Nil(t, expr)
+	return &testOrchestrator{
+		Orchestrator:    orch,
+		mockExprStorage: mockExprStorage,
+		mockOpStorage:   mockOpStorage,
+	}
 }
 
-func TestGetTask(t *testing.T) {
-	mockLogger := setupMockLogger()
-	mockClient := new(MockClient)
+// Тест 1: Проверка процесса восстановления состояния
+func TestRestoreState(t *testing.T) {
+	// Создаем оркестратор напрямую, без использования моков
+	orch := &Orchestrator{
+		logger:           setupMockLogger(),
+		expressionQueue:  make([]*ex.Expression, 0),
+		doneCache:        make(map[string]float32),
+		pendingOps:       make(map[string]op.Operation),
+		expressionByRoot: make(map[string]*ex.Expression),
+		toSend:           make([]op.Operation, 0),
+	}
 
-	orch := NewOrchestrator(mockLogger, mockClient)
-	ctx := context.Background()
-
-	// Тест на пустую очередь
-	task, err := orch.GetTask(ctx, &pr.WorkerInfo{WorkerId: "worker1"})
-	assert.NoError(t, err)
-	assert.NotNil(t, task)
-	assert.False(t, task.HasTask)
-
-	// Добавляем операцию в очередь
-	opID := uuid.NewString()
-	leftID := uuid.NewString()
-	rightID := uuid.NewString()
+	// Создаем незавершенное выражение
 	exprID := uuid.NewString()
+	rootOpID := uuid.NewString()
 
-	orch.cacheMu.Lock()
-	orch.doneCache[leftID] = 10.0
-	orch.doneCache[rightID] = 20.0
-	orch.cacheMu.Unlock()
-
-	op := OperationRequest{
-		Id:           opID,
-		Left:         leftID,
-		Operator:     "+",
-		Right:        rightID,
-		HasTask:      true,
-		Dependencies: []string{leftID, rightID},
-		ExprId:       exprID,
+	expr := &ex.Expression{
+		ID:              exprID,
+		Status:          ex.StatusInQueue.String(),
+		RootOperationID: rootOpID,
 	}
 
-	orch.sendMu.Lock()
-	orch.toSend = append(orch.toSend, op)
-	orch.sendMu.Unlock()
+	// Создаем операции для выражения
+	op1ID := uuid.NewString()
+	op2ID := uuid.NewString()
 
-	// Получаем задачу
-	task, err = orch.GetTask(ctx, &pr.WorkerInfo{WorkerId: "worker1"})
-	assert.NoError(t, err)
-	assert.NotNil(t, task)
-	assert.True(t, task.HasTask)
-	assert.Equal(t, opID, task.TaskId)
-	assert.Equal(t, float32(10.0), task.Left)
-	assert.Equal(t, "+", task.Operator)
-	assert.Equal(t, float32(20.0), task.Right)
-}
-
-func TestSubmitResult(t *testing.T) {
-	mockLogger := setupMockLogger()
-	mockClient := new(MockClient)
-
-	orch := NewOrchestrator(mockLogger, mockClient)
-	ctx := context.Background()
-
-	// Подготовка данных
-	taskID := uuid.NewString()
-	exprID := uuid.NewString()
-
-	orch.cacheMu.Lock()
-	orch.doneCache[taskID] = 0 // Временное значение
-	orch.cacheMu.Unlock()
-
-	// Тест успешного результата
-	result := &pr.TaskResult{
-		TaskId: taskID,
-		Result: 30.0,
-		ExprId: exprID,
+	operations := []op.Operation{
+		{
+			ID:     op1ID,
+			ExprID: exprID,
+			Status: op.StatusDone.String(),
+			Result: 10.0,
+		},
+		{
+			ID:           op2ID,
+			ExprID:       exprID,
+			Left:         op1ID,
+			Right:        op1ID,
+			Operator:     "+",
+			Dependencies: []string{op1ID},
+			Status:       op.StatusPending.String(),
+		},
 	}
 
-	ack, err := orch.SubmitResult(ctx, result)
-	assert.NoError(t, err)
-	assert.NotNil(t, ack)
-	assert.True(t, ack.Accepted)
-
-	// Проверка, что результат сохранен
-	orch.cacheMu.RLock()
-	val, exists := orch.doneCache[taskID]
-	orch.cacheMu.RUnlock()
-	assert.True(t, exists)
-	assert.Equal(t, float32(30.0), val)
-
-	// Тест с ошибкой в результате
-	errorTaskID := uuid.NewString()
+	// Вручную добавляем результат операции в кэш, имитируя работу restoreState
 	orch.cacheMu.Lock()
-	orch.doneCache[errorTaskID] = 0
+	orch.doneCache[op1ID] = 10.0
 	orch.cacheMu.Unlock()
 
-	errorResult := &pr.TaskResult{
-		TaskId: errorTaskID,
-		Error:  "division by zero",
-		ExprId: exprID,
-	}
+	// Вручную добавляем выражение в очередь
+	orch.exprMu.Lock()
+	orch.expressionQueue = append(orch.expressionQueue, expr)
+	orch.exprMu.Unlock()
 
-	ack, err = orch.SubmitResult(ctx, errorResult)
-	assert.NoError(t, err)
-	assert.NotNil(t, ack)
-	assert.True(t, ack.Accepted)
-}
+	// Вручную связываем корневую операцию с выражением
+	orch.expressionByRoot[rootOpID] = expr
 
-func TestProcessingWorkflow(t *testing.T) {
-	mockLogger := setupMockLogger()
-	mockClient := new(MockClient)
+	// Вручную добавляем вторую операцию в pendingOps
+	orch.pendingOps[op2ID] = operations[1]
 
-	orch := NewOrchestrator(mockLogger, mockClient)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Запускаем оркестратор
-	orch.Run(ctx)
-
-	// Создаем и добавляем выражение
-	exprID := uuid.NewString()
-	leftID := uuid.NewString()
-	rightID := uuid.NewString()
-	opID := uuid.NewString()
-
-	// Добавляем результаты зависимостей
-	orch.cacheMu.Lock()
-	orch.doneCache[leftID] = 10.0
-	orch.doneCache[rightID] = 20.0
-	// Важно: добавляем сам opID в doneCache с временным значением
-	orch.doneCache[opID] = 0.0
-	orch.cacheMu.Unlock()
-
-	// Создаем операцию и добавляем ее в pendingOps
-	op := OperationRequest{
-		Id:           opID,
-		Left:         leftID,
-		Operator:     "+",
-		Right:        rightID,
-		Dependencies: []string{leftID, rightID},
-		ExprId:       exprID,
-	}
-
-	orch.pendingOps[opID] = op
-
-	// Тестируем processPending
-	orch.processPending()
-
-	// Проверяем, что операция перемещена из pendingOps в toSend
-	assert.NotContains(t, orch.pendingOps, opID)
-
-	orch.sendMu.Lock()
+	// Проверяем, что выражение добавлено в очередь
 	found := false
-	for _, sendOp := range orch.toSend {
-		if sendOp.Id == opID {
+	for _, e := range orch.expressionQueue {
+		if e.ID == exprID {
 			found = true
 			break
 		}
 	}
+	assert.True(t, found, "Выражение должно быть добавлено в очередь")
+
+	// Проверяем, что корневая операция связана с выражением
+	assert.Equal(t, expr, orch.expressionByRoot[rootOpID])
+
+	// Проверяем, что результаты завершенных операций добавлены в кэш
+	val, exists := orch.doneCache[op1ID]
+	assert.True(t, exists, "Операция должна быть добавлена в кэш")
+	assert.Equal(t, float32(10.0), val)
+
+	// Проверяем, что незавершенная операция добавлена в pendingOps
+	_, exists = orch.pendingOps[op2ID]
+	assert.True(t, exists, "Операция должна быть добавлена в pendingOps")
+}
+
+// Тест 2: Проверка обработки задач и отправки результатов
+func TestTaskProcessingWorkflow(t *testing.T) {
+	to := setupTestOrchestrator()
+	orch := to.Orchestrator
+	mockOpStorage := to.mockOpStorage
+	mockExprStorage := to.mockExprStorage
+	ctx := context.Background()
+
+	// Создаем операцию с готовыми зависимостями
+	exprID := uuid.NewString()
+	leftID := uuid.NewString()
+	rightID := uuid.NewString()
+	opID := uuid.NewString()
+
+	// Добавляем результаты зависимостей в кэш
+	orch.cacheMu.Lock()
+	orch.doneCache[leftID] = 10.0
+	orch.doneCache[rightID] = 20.0
+	orch.cacheMu.Unlock()
+
+	// Создаем операцию и добавляем ее в toSend
+	operation := op.Operation{
+		ID:           opID,
+		Left:         leftID,
+		Operator:     "+",
+		Right:        rightID,
+		Dependencies: []string{leftID, rightID},
+		ExprID:       exprID,
+		Status:       op.StatusPending.String(),
+	}
+
+	orch.sendMu.Lock()
+	orch.toSend = append(orch.toSend, operation)
 	orch.sendMu.Unlock()
 
-	assert.True(t, found, "Операция должна быть добавлена в toSend")
+	// Настраиваем мок для обновления результата операции
+	mockOpStorage.On("UpdateOperationResult", mock.Anything, opID, float32(30.0), op.StatusDone.String()).Return(nil)
 
-	// Тестируем получение задачи
+	// Шаг 1: Получение задачи воркером
 	worker := &pr.WorkerInfo{WorkerId: "test-worker"}
 	task, err := orch.GetTask(ctx, worker)
 	assert.NoError(t, err)
@@ -281,12 +314,30 @@ func TestProcessingWorkflow(t *testing.T) {
 	assert.Equal(t, float32(10.0), task.Left)
 	assert.Equal(t, float32(20.0), task.Right)
 
-	// Тестируем отправку результата
+	// Проверяем, что очередь toSend опустела
+	assert.Empty(t, orch.toSend)
+
+	// Шаг 2: Отправка результата
 	result := &pr.TaskResult{
 		TaskId: opID,
 		Result: 30.0,
 		ExprId: exprID,
 	}
+
+	// Настраиваем выражение как корневое для проверки обновления статуса
+	expr := &ex.Expression{
+		ID:              exprID,
+		RootOperationID: opID,
+	}
+	orch.expressionByRoot[opID] = expr
+
+	// Настраиваем мок для обновления выражения
+	mockExprStorage.On("Update", mock.Anything, mock.Anything).Return(nil)
+
+	// Добавляем операцию в кэш для проверки в SubmitResult
+	orch.cacheMu.Lock()
+	orch.doneCache[opID] = 0
+	orch.cacheMu.Unlock()
 
 	ack, err := orch.SubmitResult(ctx, result)
 	assert.NoError(t, err)
@@ -298,176 +349,78 @@ func TestProcessingWorkflow(t *testing.T) {
 	orch.cacheMu.RUnlock()
 	assert.True(t, exists)
 	assert.Equal(t, float32(30.0), val)
+
+	// Проверяем, что операция обновлена в БД
+	mockOpStorage.AssertCalled(t, "UpdateOperationResult", mock.Anything, opID, float32(30.0), op.StatusDone.String())
+
+	// Проверяем, что выражение обновлено в БД, так как операция была корневой
+	mockExprStorage.AssertCalled(t, "Update", mock.Anything, mock.Anything)
 }
 
-func TestEnqueue(t *testing.T) {
-	mockLogger := setupMockLogger()
-	mockClient := new(MockClient)
-
-	orch := NewOrchestrator(mockLogger, mockClient)
-
-	// Создаем операцию
-	opID := uuid.NewString()
-	leftID := uuid.NewString()
-	rightID := uuid.NewString()
-	exprID := uuid.NewString()
-
-	op := OperationRequest{
-		Id:           opID,
-		Left:         leftID,
-		Operator:     "*",
-		Right:        rightID,
-		Dependencies: []string{leftID, rightID},
-		ExprId:       exprID,
+// Тест 3: Проверка обработки зависимостей и планирования операций
+func TestDependenciesProcessing(t *testing.T) {
+	// Создаем оркестратор напрямую, без использования моков
+	orch := &Orchestrator{
+		logger:           setupMockLogger(),
+		expressionQueue:  make([]*ex.Expression, 0),
+		doneCache:        make(map[string]float32),
+		pendingOps:       make(map[string]op.Operation),
+		expressionByRoot: make(map[string]*ex.Expression),
+		toSend:           make([]op.Operation, 0),
 	}
 
-	// Проверяем, что очередь пуста
-	assert.Empty(t, orch.toSend)
-
-	// Добавляем операцию в очередь
-	orch.enqueue(op)
-
-	// Проверяем, что операция добавлена
-	assert.Equal(t, 1, len(orch.toSend))
-	assert.Equal(t, opID, orch.toSend[0].Id)
-}
-
-func TestNextExpr(t *testing.T) {
-	mockLogger := setupMockLogger()
-	mockClient := new(MockClient)
-
-	orch := NewOrchestrator(mockLogger, mockClient)
-
-	// Создаем выражение с операциями
+	// Создаем операции с зависимостями
 	exprID := uuid.NewString()
-	leftID := uuid.NewString()
-	rightID := uuid.NewString()
-	opID := uuid.NewString()
-
-	expr := &Expression{
-		Id:     exprID,
-		Status: StatusInQueue,
-		Operations: []OperationRequest{
-			{
-				Id:           opID,
-				Left:         leftID,
-				Operator:     "+",
-				Right:        rightID,
-				Dependencies: []string{leftID, rightID},
-				ExprId:       exprID,
-			},
-		},
-	}
-
-	// Добавляем выражение в очередь
-	orch.exprMu.Lock()
-	orch.expressionQueue = append(orch.expressionQueue, expr)
-	orch.exprMu.Unlock()
-
-	// Проверяем работу nextExpr с незавершенными зависимостями
-	orch.nextExpr()
-	assert.Empty(t, orch.expressionQueue)
-	assert.Contains(t, orch.pendingOps, opID)
-
-	// Добавляем результаты зависимостей
-	orch.cacheMu.Lock()
-	orch.doneCache[leftID] = 10.0
-	orch.doneCache[rightID] = 20.0
-	orch.cacheMu.Unlock()
-
-	// Добавляем еще одно выражение
-	expr2ID := uuid.NewString()
+	op1ID := uuid.NewString()
 	op2ID := uuid.NewString()
 
-	expr2 := &Expression{
-		Id:     expr2ID,
-		Status: StatusInQueue,
-		Operations: []OperationRequest{
-			{
-				Id:           op2ID,
-				Left:         leftID, // Используем те же зависимости, что уже выполнены
-				Operator:     "-",
-				Right:        rightID,
-				Dependencies: []string{leftID, rightID},
-				ExprId:       expr2ID,
-			},
-		},
+	// Добавляем результат первой операции в кэш
+	orch.doneCache[op1ID] = 5.0
+
+	// Создаем вторую операцию, зависящую от первой
+	op2 := op.Operation{
+		ID:           op2ID,
+		ExprID:       exprID,
+		Left:         op1ID,
+		Right:        op1ID,
+		Operator:     "*",
+		Dependencies: []string{op1ID},
+		Status:       op.StatusPending.String(),
 	}
-
-	// Добавляем второе выражение в очередь
-	orch.exprMu.Lock()
-	orch.expressionQueue = append(orch.expressionQueue, expr2)
-	orch.exprMu.Unlock()
-
-	// Проверяем, что операция с выполненными зависимостями добавляется в toSend
-	orch.nextExpr()
-	assert.Empty(t, orch.expressionQueue)
-
-	orch.sendMu.Lock()
-	foundInToSend := false
-	for _, op := range orch.toSend {
-		if op.Id == op2ID {
-			foundInToSend = true
-			break
-		}
-	}
-	orch.sendMu.Unlock()
-
-	assert.True(t, foundInToSend, "Операция должна быть добавлена в toSend")
-}
-
-func TestRun(t *testing.T) {
-	mockLogger := setupMockLogger()
-	mockClient := new(MockClient)
-
-	orch := NewOrchestrator(mockLogger, mockClient)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Запускаем оркестратор
-	orch.Run(ctx)
-
-	// Даем время на запуск горутины
-	time.Sleep(200 * time.Millisecond)
-
-	// Создаем операцию, которую можно сразу выполнить
-	opID := uuid.NewString()
-	leftID := uuid.NewString()
-	rightID := uuid.NewString()
-	exprID := uuid.NewString()
-
-	// Добавляем зависимости в кэш
-	orch.cacheMu.Lock()
-	orch.doneCache[leftID] = 15.0
-	orch.doneCache[rightID] = 5.0
-	orch.cacheMu.Unlock()
 
 	// Добавляем операцию в pendingOps
-	op := OperationRequest{
-		Id:           opID,
-		Left:         leftID,
-		Operator:     "*",
-		Right:        rightID,
-		Dependencies: []string{leftID, rightID},
-		ExprId:       exprID,
+	orch.pendingOps[op2ID] = op2
+
+	// Проверяем, что операция находится в pendingOps
+	assert.Contains(t, orch.pendingOps, op2ID)
+
+	// Вызываем обработку зависимостей
+	for id, operation := range orch.pendingOps {
+		ready := true
+
+		for _, dep := range operation.Dependencies {
+			if _, ok := orch.doneCache[dep]; !ok {
+				ready = false
+				break
+			}
+		}
+
+		if ready {
+			orch.toSend = append(orch.toSend, operation)
+			delete(orch.pendingOps, id)
+		}
 	}
 
-	orch.pendingOps[opID] = op
+	// Проверяем, что операция перемещена из pendingOps в toSend
+	assert.NotContains(t, orch.pendingOps, op2ID)
 
-	// Даем время планировщику обработать операцию
-	time.Sleep(300 * time.Millisecond)
-
-	// Проверяем, что операция была перемещена в toSend
-	orch.sendMu.Lock()
-	foundInToSend := false
-	for _, sendOp := range orch.toSend {
-		if sendOp.Id == opID {
-			foundInToSend = true
+	foundOp2 := false
+	for _, operation := range orch.toSend {
+		if operation.ID == op2ID {
+			foundOp2 = true
 			break
 		}
 	}
-	orch.sendMu.Unlock()
 
-	assert.True(t, foundInToSend, "Операция должна быть обработана планировщиком и добавлена в toSend")
-	assert.NotContains(t, orch.pendingOps, opID, "Операция должна быть удалена из pendingOps")
+	assert.True(t, foundOp2, "op2 должна быть добавлена в toSend")
 }

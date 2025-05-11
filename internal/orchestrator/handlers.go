@@ -35,7 +35,19 @@ func (o *Orchestrator) CalculateHandler(c *gin.Context) {
 	o.logger.Info("Processing calculation request",
 		"expression", userRequest.Expression)
 
-	expr, err := o.NewExpression(userRequest.Expression)
+	userID, ok := c.Get("userID")
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "No userID in token"})
+		return
+	}
+
+	userIDString, ok := userID.(string)
+	if !ok {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Can't convert userID to string"})
+		return
+	}
+
+	expr, err := o.NewExpression(userRequest.Expression, userIDString)
 	if err != nil {
 		o.logger.Error("Failed to prepare input",
 			"expression", userRequest.Expression,
@@ -45,20 +57,18 @@ func (o *Orchestrator) CalculateHandler(c *gin.Context) {
 	}
 
 	response := gin.H{
-		"id":     expr.Id,
+		"id":     expr.ID,
 		"status": expr.Status,
 	}
 
 	o.logger.Info("Calculation request processed successfully",
-		"expression_id", expr.Id,
-		"status", expr.Status.String())
+		"expression_id", expr.ID,
+		"status", expr.Status)
 
 	c.JSON(http.StatusOK, response)
 }
 
 func (o *Orchestrator) ExpressionsHandler(c *gin.Context) {
-	o.logger.Info("Processing expressions request")
-
 	userID, ok := c.Get("userID")
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "No userID in token"})

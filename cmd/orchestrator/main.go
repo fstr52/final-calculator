@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +14,8 @@ import (
 	"github.com/fstr52/final-calculator/internal/db/postgresql"
 	"github.com/fstr52/final-calculator/internal/logger"
 	"github.com/fstr52/final-calculator/internal/orchestrator"
+	pr "github.com/fstr52/final-calculator/internal/proto"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -73,6 +76,22 @@ func main() {
 	}
 
 	o := orchestrator.NewOrchestrator(logger, pgClient)
+	grpcServer := grpc.NewServer()
+	pr.RegisterOrchestratorServiceServer(grpcServer, o)
+
+	lis, err := net.Listen("tcp", ":50051")
+	if err != nil {
+		logger.Error("Failed to listev",
+			"error", err)
+	}
+	logger.Info("gRPC server is listening in :50051")
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			logger.Error("Failed grpcServer.Servce",
+				"error", err)
+			cancel()
+		}
+	}()
 
 	router := orchestrator.SetupRouter(o, auth)
 	port := ":" + strconv.Itoa(cfg.Orchestrator.Port)
@@ -97,7 +116,7 @@ func main() {
 	<-stop
 	logger.Info("Shutdown signal received")
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 
 	cancel()

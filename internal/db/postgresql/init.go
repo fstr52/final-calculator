@@ -16,12 +16,26 @@ func InitSchema(ctx context.Context, client Client) error {
         );
 
         CREATE TABLE IF NOT EXISTS expressions (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                id UUID PRIMARY KEY,
                 user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-                expression TEXT NOT NULL,
+                root_operation_id TEXT,
                 status VARCHAR(50),
-                error TEXT,
+                success BOOLEAN,
                 result FLOAT,
+                error TEXT,
+                expression TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS operations (
+                id UUID PRIMARY KEY,
+                expr_id UUID REFERENCES expressions(id) ON DELETE CASCADE,
+                left_operand UUID,
+                right_operand UUID,
+                operator VARCHAR(10),
+                dependencies UUID[],
+                result FLOAT,
+                status VARCHAR(20),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         `

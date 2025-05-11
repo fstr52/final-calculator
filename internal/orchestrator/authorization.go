@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -104,7 +105,11 @@ func (a *AuthHandler) RegisterHandler(c *gin.Context) {
 
 	_, err = a.userStorage.Create(context.TODO(), user)
 	if err != nil {
-		//TODO
+		a.logger.Error("REGISTRATION ERR", "error", err)
+		if errors.Is(err, db.ErrUserAlreadyExists) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"result": "You successfully registered!"})

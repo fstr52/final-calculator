@@ -2,15 +2,16 @@ package orchestrator
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/fstr52/final-calculator/internal/db/postgresql"
-	"github.com/fstr52/final-calculator/internal/expression"
-	"github.com/fstr52/final-calculator/internal/expression/db"
+	ex "github.com/fstr52/final-calculator/internal/expression"
+	exDB "github.com/fstr52/final-calculator/internal/expression/db"
 	"github.com/fstr52/final-calculator/internal/logger"
+	op "github.com/fstr52/final-calculator/internal/operation"
+	opDB "github.com/fstr52/final-calculator/internal/operation/db"
 	"github.com/fstr52/final-calculator/internal/parser"
 	pr "github.com/fstr52/final-calculator/internal/proto"
 	"github.com/google/uuid"
@@ -20,12 +21,13 @@ type Orchestrator struct {
 	pr.OrchestratorServiceServer
 	logger logger.Logger
 
-	expressionQueue  []*Expression
+	expressionQueue  []*ex.Expression
 	doneCache        map[string]float32
-	pendingOps       map[string]OperationRequest
-	expressionByRoot map[string]*Expression
-	toSend           []OperationRequest
-	exprStorage      expression.Storage
+	pendingOps       map[string]op.Operation
+	expressionByRoot map[string]*ex.Expression
+	toSend           []op.Operation
+	exprStorage      ex.Storage
+	opStorage        op.Storage
 
 	cacheMu sync.RWMutex
 	exprMu  sync.Mutex
@@ -35,59 +37,80 @@ type Orchestrator struct {
 func NewOrchestrator(logger logger.Logger, client postgresql.Client) *Orchestrator {
 	return &Orchestrator{
 		logger:           logger,
-		expressionQueue:  make([]*Expression, 0),
+		expressionQueue:  make([]*ex.Expression, 0),
 		doneCache:        make(map[string]float32),
-		pendingOps:       make(map[string]OperationRequest),
-		expressionByRoot: make(map[string]*Expression),
-		toSend:           make([]OperationRequest, 0),
-		exprStorage:      db.NewStorage(client),
+		pendingOps:       make(map[string]op.Operation),
+		expressionByRoot: make(map[string]*ex.Expression),
+		toSend:           make([]op.Operation, 0),
+		exprStorage:      exDB.NewStorage(client, logger),
+		opStorage:        opDB.NewStorage(client, logger),
 	}
-}
-
-type ExpressionStatus int
-
-const (
-	StatusCreated ExpressionStatus = iota
-	StatusInQueue
-	StatusComputing
-	StatusDone
-	StatusError
-)
-
-func (e ExpressionStatus) String() string {
-	return []string{"Created", "In Queue", "Computing", "Done", "Error"}[e]
-}
-
-type Expression struct {
-	Id         string
-	Operations []OperationRequest
-	Success    bool
-	Result     float32
-	Error      error
-	Status     ExpressionStatus
-}
-
-func (e *Expression) String() string {
-	return fmt.Sprintf("Expression{Id: %s, Success: %t, Result: %.2f, Error: %v, Status: %s, Operations: %d}",
-		e.Id, e.Success, e.Result, e.Error, e.Status.String(), len(e.Operations))
-}
-
-type OperationRequest struct {
-	Id           string
-	Left         string
-	Operator     string
-	Right        string
-	HasTask      bool
-	Dependencies []string
-	ExprId       string
 }
 
 func (o *Orchestrator) Run(ctx context.Context) {
 	o.logger.Debug("Started Run for Orchestrator")
+
+	o.restoreState(ctx)
+	go o.startTTLWatcher(ctx)
+
 	go o.startScheduler(ctx)
 }
 
-func (o *Orchestrator) NewExpression(input string) (*Expression, error) {
+func (o *Orchestrator) restoreState(ctx context.Context) {
+	o.logger.Info("Restoring state from DB...")
+
+	exprs, err := o.exprStorage.GetUnfinishedExpressions(ctx)
+	if err != nil {
+		o.logger.Error("Failed to load unfinished expressions", "error", err)
+		return
+	}
+
+	for _, expr := range exprs {
+		o.logger.Debug("Restoring expression", "id", expr.ID)
+
+		ops, err := o.opStorage.GetOperationsByExpression(ctx, expr.ID)
+		if err != nil {
+			o.logger.Error("Failed to get operations", "exprID", expr.ID, "error", err)
+			continue
+		}
+		expr.Operations = ops
+
+		o.exprMu.Lock()
+		o.expressionQueue = append(o.expressionQueue, expr)
+		o.exprMu.Unlock()
+
+		o.expressionByRoot[expr.RootOperationID] = expr
+
+		for _, op := range ops {
+			if op.Status == "done" {
+				o.cacheMu.Lock()
+				o.doneCache[op.ID] = op.Result
+				o.cacheMu.Unlock()
+				continue
+			}
+
+			ready := true
+			o.cacheMu.RLock()
+			for _, dep := range op.Dependencies {
+				if _, ok := o.doneCache[dep]; !ok {
+					ready = false
+					break
+				}
+			}
+			o.cacheMu.RUnlock()
+
+			if ready {
+				o.enqueue(op)
+			} else {
+				o.pendingOps[op.ID] = op
+			}
+		}
+	}
+
+	o.logger.Info("State restored successfully")
+}
+
+func (o *Orchestrator) NewExpression(input string, userID string) (*ex.Expression, error) {
 	o.logger.Debug("Started NewExpression",
 		"input", input)
 	p := parser.NewParser(input, o.logger)
@@ -98,59 +121,115 @@ func (o *Orchestrator) NewExpression(input string) (*Expression, error) {
 		return nil, err
 	}
 
-	expr := &Expression{}
-	expr.Status = StatusCreated
+	expr := &ex.Expression{
+		ID:         uuid.NewString(),
+		UserID:     userID,
+		Status:     ex.StatusCreated.String(),
+		Expression: input,
+	}
+
+	if err = o.exprStorage.Create(context.TODO(), *expr); err != nil {
+		return nil, err
+	}
 
 	rootId := o.planOperations(expr, ast)
-	expr.Id = rootId
+	expr.RootOperationID = rootId
 
 	o.exprMu.Lock()
 	o.expressionQueue = append(o.expressionQueue, expr)
 	o.exprMu.Unlock()
-	expr.Status = StatusInQueue
+	expr.Status = ex.StatusInQueue.String()
+	o.expressionByRoot[rootId] = expr
+
+	if err := o.UpdateExpression(context.TODO(), *expr); err != nil {
+		return nil, err
+	}
 
 	o.logger.Debug("Successfully created new expression",
 		"Expression", expr.String())
 	return expr, nil
 }
 
-func (o *Orchestrator) planOperations(expr *Expression, ast parser.Expr) string {
-	o.logger.Debug("Started planOperations",
-		"expr", expr.String(),
-		"ast", fmt.Sprintf("%+v", ast))
+func (o *Orchestrator) planOperations(expr *ex.Expression, ast parser.Expr) string {
 	switch n := ast.(type) {
 	case *parser.Number:
-		o.logger.Debug("Parsed parser.Number")
 		id := uuid.NewString()
 		o.cacheMu.Lock()
 		o.doneCache[id] = ast.Eval()
 		o.cacheMu.Unlock()
-		o.logger.Debug("Number",
-			"id", id)
 		return id
 	case *parser.Binary:
-		o.logger.Debug("Parsed parser.Binary")
 		leftId := o.planOperations(expr, n.Left)
 		rightId := o.planOperations(expr, n.Right)
 
-		id := uuid.NewString()
+		// Проверка на пустой id (!!!)
+		if leftId == "" || rightId == "" {
+			o.logger.Error("planOperations got empty left/rightId",
+				"leftId", leftId,
+				"rightId", rightId,
+				"op", n.Symbol.Value)
+			return "" // или panic, или лучше error!
+		}
 
-		op := OperationRequest{
-			Id:           id,
+		id := uuid.NewString()
+		oper := op.Operation{
+			ID:           id,
 			Left:         leftId,
 			Operator:     n.Symbol.Value,
 			Right:        rightId,
 			Dependencies: []string{leftId, rightId},
-			ExprId:       expr.Id,
+			ExprID:       expr.ID,
+		}
+		oper.Status = op.StatusPending.String()
+		if err := o.opStorage.Create(context.TODO(), oper); err != nil {
+			o.logger.Error("Failed to save operation", "error", err)
 		}
 
-		expr.Operations = append(expr.Operations, op)
-
-		o.logger.Debug("Binary",
-			"id", id)
+		expr.Operations = append(expr.Operations, oper)
 		return id
+
+	default:
+		o.logger.Error("planOperations: unknown AST node type",
+			"type", fmt.Sprintf("%T", ast))
+		panic("unknown AST node type")
 	}
-	return ""
+}
+
+func (o *Orchestrator) startTTLWatcher(ctx context.Context) {
+	const ttl = 5 * time.Minute
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			o.logger.Info("TTL watcher stopped")
+			return
+		case <-ticker.C:
+			now := time.Now()
+
+			exprs, err := o.exprStorage.GetUnfinishedExpressions(ctx)
+			if err != nil {
+				o.logger.Error("Failed to load unfinished expressions for TTL", "error", err)
+				continue
+			}
+
+			for _, expr := range exprs {
+				age := now.Sub(expr.CreatedAt)
+				if age > ttl {
+					o.logger.Warn("Expression timed out", "id", expr.ID, "age", age)
+
+					expr.Status = ex.StatusError.String()
+					expr.Success = false
+					expr.Error = "expression timed out"
+
+					if err := o.UpdateExpression(ctx, *expr); err != nil {
+						o.logger.Error("Failed to mark expression as timed out", "id", expr.ID, "error", err)
+					}
+				}
+			}
+		}
+	}
 }
 
 func (o *Orchestrator) startScheduler(ctx context.Context) {
@@ -201,7 +280,7 @@ func (o *Orchestrator) nextExpr() {
 		if ready {
 			o.enqueue(op)
 		} else {
-			o.pendingOps[op.Id] = op
+			o.pendingOps[op.ID] = op
 		}
 	}
 }
@@ -211,48 +290,50 @@ func (o *Orchestrator) processPending() {
 		return
 	}
 
+	var toDelete []string
+
 	for id, op := range o.pendingOps {
 		allReady := true
-
 		for _, dep := range op.Dependencies {
 			o.cacheMu.RLock()
 			if _, done := o.doneCache[dep]; !done {
-				o.logger.Debug("dep not done",
-					"dep", dep)
+				o.logger.Debug("dep not done", "dep", dep)
 				allReady = false
+				o.cacheMu.RUnlock()
 				break
 			}
 			o.cacheMu.RUnlock()
 		}
-
 		if allReady {
-			o.logger.Debug("allReady",
-				"op", op)
+			o.logger.Debug("allReady", "op", op)
 			o.enqueue(op)
-			delete(o.pendingOps, id)
+			toDelete = append(toDelete, id)
 		}
+	}
+	for _, id := range toDelete {
+		delete(o.pendingOps, id)
 	}
 }
 
-func (o *Orchestrator) enqueue(op OperationRequest) {
+func (o *Orchestrator) enqueue(op op.Operation) {
 	o.sendMu.Lock()
 	o.toSend = append(o.toSend, op)
 	o.sendMu.Unlock()
 }
 
 func (o *Orchestrator) GetTask(ctx context.Context, info *pr.WorkerInfo) (*pr.Task, error) {
-	o.logger.Debug("Started GetTask",
-		"workerId", info.WorkerId)
+	o.sendMu.Lock()
+	defer o.sendMu.Unlock()
 
 	if len(o.toSend) == 0 {
-		o.logger.Debug("toSend len == 0")
 		return &pr.Task{HasTask: false}, nil
 	}
 
-	o.sendMu.Lock()
+	o.logger.Debug("Started GetTask with toSend len > 0",
+		"workerId", info.WorkerId)
+
 	op := o.toSend[0]
 	o.toSend = o.toSend[1:]
-	o.sendMu.Unlock()
 
 	o.cacheMu.RLock()
 	left := o.doneCache[op.Left]
@@ -260,12 +341,12 @@ func (o *Orchestrator) GetTask(ctx context.Context, info *pr.WorkerInfo) (*pr.Ta
 	o.cacheMu.RUnlock()
 
 	task := &pr.Task{
-		TaskId:   op.Id,
+		TaskId:   op.ID,
 		Left:     left,
 		Operator: op.Operator,
 		Right:    right,
 		HasTask:  true,
-		ExprId:   op.ExprId,
+		ExprId:   op.ExprID,
 	}
 
 	o.logger.Debug("Sending task",
@@ -290,18 +371,31 @@ func (o *Orchestrator) SubmitResult(ctx context.Context, res *pr.TaskResult) (*p
 	}
 
 	o.cacheMu.Lock()
-	if _, ok := o.doneCache[res.TaskId]; !ok {
-		o.logger.Error("Received task not found by ID",
-			"ID", res.TaskId)
-		return nil, errors.New("received task not found by ID")
-	}
 	o.doneCache[res.TaskId] = res.Result
 	o.cacheMu.Unlock()
 
-	if expr, ok := o.expressionByRoot[res.TaskId]; ok {
-		expr.Status = StatusDone
+	if err := o.opStorage.UpdateOperationResult(ctx, res.TaskId, res.Result, op.StatusDone.String()); err != nil {
+		o.logger.Error("Failed to update operation result", "error", err)
 	}
 
+	o.logger.Debug("Trying to find expression by root",
+		"taskID", res.TaskId,
+		"exprID", res.ExprId)
+
+	if expr, ok := o.expressionByRoot[res.TaskId]; ok && res.TaskId == expr.RootOperationID {
+		o.logger.Debug("Found expression by root",
+			"res.TaskID", res.TaskId)
+		expr.Status = ex.StatusDone.String()
+		expr.Success = true
+		expr.Result = res.Result
+
+		if err := o.UpdateExpression(ctx, *expr); err != nil {
+			o.logger.Error("Failed to update expression after result",
+				"error", err)
+		}
+	}
+
+	o.processPending()
 	o.logger.Debug("SubmitResult finished")
 	return ack, nil
 }
@@ -315,8 +409,20 @@ func (o *Orchestrator) ErrorExpression(ctx context.Context, exprID string, exprE
 	}
 
 	expr.Error = exprErr
+	expr.Status = ex.StatusError.String()
+	expr.Success = false
 
-	if err = o.exprStorage.Update(ctx, expr); err != nil {
+	if err := o.UpdateExpression(ctx, expr); err != nil {
+		o.logger.Error("Error updating expression error",
+			"error", err)
+		return err
+	}
+
+	return nil
+}
+
+func (o *Orchestrator) UpdateExpression(ctx context.Context, expr ex.Expression) error {
+	if err := o.exprStorage.Update(ctx, expr); err != nil {
 		o.logger.Error("Error updating expression",
 			"error", err)
 		return err

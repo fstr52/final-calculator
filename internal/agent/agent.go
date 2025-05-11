@@ -104,6 +104,15 @@ func (a *Agent) RunWorker(ctx context.Context, id string, host string, port stri
 				return err
 			}
 
+			if !task.HasTask {
+				continue
+			}
+
+			if task.TaskId == "" {
+				a.logger.Error("Received task with empty ID",
+					"task", fmt.Sprintf("%+v", task))
+			}
+
 			left := task.Left
 			right := task.Right
 
@@ -128,6 +137,7 @@ func (a *Agent) RunWorker(ctx context.Context, id string, host string, port stri
 					TaskId:  task.TaskId,
 					Success: false,
 					Error:   err.Error(),
+					ExprId:  task.ExprId,
 				}
 
 				ack, err := client.SubmitResult(ctx, taskResult)
@@ -135,10 +145,12 @@ func (a *Agent) RunWorker(ctx context.Context, id string, host string, port stri
 					return fmt.Errorf("submit result error: %v, ack: %+v", err, ack)
 				}
 			} else {
+
 				taskResult := &pr.TaskResult{
 					TaskId:  task.TaskId,
 					Success: true,
 					Result:  result,
+					ExprId:  task.ExprId,
 				}
 
 				ack, err := client.SubmitResult(ctx, taskResult)

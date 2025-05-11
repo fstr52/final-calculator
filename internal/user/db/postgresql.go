@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/fstr52/final-calculator/internal/db/postgresql"
 	"github.com/fstr52/final-calculator/internal/logger"
@@ -31,7 +32,7 @@ func (r *storage) Create(ctx context.Context, user user.User) (string, error) {
 	`
 	if err := r.client.QueryRow(ctx, q, user.Username, user.PasswordHash).Scan(&user.ID); err != nil {
 		var pgErr *pgconn.PgError
-		if errors.Is(err, pgErr) {
+		if errors.As(err, &pgErr) {
 			pgErr = err.(*pgconn.PgError)
 			r.logger.Error("SQL Error",
 				"error", pgErr.Message,
@@ -39,6 +40,11 @@ func (r *storage) Create(ctx context.Context, user user.User) (string, error) {
 				"where", pgErr.Where,
 				"code", pgErr.Code,
 				"SQLState", pgErr.SQLState())
+
+			if pgErr.Code == "23505" && strings.Contains(pgErr.ConstraintName, "users_username_key") {
+				return "", ErrUserAlreadyExists
+			}
+
 			return "", fmt.Errorf("SQL error: %v", err)
 		} else {
 			r.logger.Error("Create error",
