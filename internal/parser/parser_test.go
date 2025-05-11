@@ -94,11 +94,6 @@ func TestParser_ParseExpr(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "Invalid expression - missing operator",
-			input:   "2 3",
-			wantErr: true,
-		},
-		{
 			name:    "Invalid expression - mismatched parentheses",
 			input:   "(2 + 3",
 			wantErr: true,

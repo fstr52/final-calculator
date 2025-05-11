@@ -1,0 +1,26 @@
+signing_key: "skibidi"
+debug: false
+
+orchestrator:
+  port: 8080
+  time_addition_ms: 5000
+  time_subtraction_ms: 5000
+  time_multiplications_ms: 10000
+  time_divisions_ms: 10000
+
+agent: {}
+
+data_base:
+  username: postgres
+  password: postgres
+  host: postgres
+  port: "5432"
+  db_name: calculator
+  max_attmeps: 5
+
+logging:
+  to_file: true
+  logging_dir: ./logs
+  logging_format: json
+  logging_file_max_size: 10
+  logging_max_filex: 3

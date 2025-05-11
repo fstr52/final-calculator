@@ -1,5 +1,5 @@
-signing_key: your_secret_key
-debug: false
+signing_key: "skibidi"
+debug: true
 
 orchestrator: {}
 

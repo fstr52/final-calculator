@@ -15,7 +15,7 @@ type OrchestratorConfig struct {
 }
 
 type AgentConfig struct {
-	OrchestratorHost string `yaml:"orchestrator_host" env:"ORCHESTRATOR_host"`
+	OrchestratorHost string `yaml:"orchestrator_host" env:"ORCHESTRATOR_HOST"`
 	OrchestratorPort string `yaml:"orchestrator_port" env:"ORCHESTRATOR_PORT"`
 	ComputingPower   int64  `yaml:"computing_power" env:"COMPUTING_POWER"` // Количество запускаемых горутин для каждого агента
 }
@@ -63,13 +63,21 @@ func NewDefaultConfig() *Config {
 	cfg.Orchestrator.TimeMultiplicationsMS = 10000
 	cfg.Orchestrator.TimeDivisionsMS = 10000
 
-	cfg.Agent.OrchestratorHost = "localhost:8080"
+	cfg.Agent.OrchestratorHost = "orchestrator"
+	cfg.Agent.OrchestratorPort = "50051"
 	cfg.Agent.ComputingPower = 5
 
 	cfg.Logging.ToFile = false
 	cfg.Logging.Format = "json"
 	cfg.Logging.MaxSize = 10
 	cfg.Logging.MaxFiles = 3
+
+	cfg.DataBase.DbName = "calculator"
+	cfg.DataBase.Host = "postgres"
+	cfg.DataBase.MaxAttemps = 5
+	cfg.DataBase.Password = "postgres"
+	cfg.DataBase.Port = "5432"
+	cfg.DataBase.Username = "postgres"
 
 	return cfg
 }
@@ -101,6 +109,30 @@ func (c *Config) Validate() error {
 
 	if len(c.Agent.OrchestratorHost) == 0 {
 		return fmt.Errorf("invalid orchestrator host: %s", c.Agent.OrchestratorHost)
+	}
+
+	if c.DataBase.DbName == "" {
+		return fmt.Errorf("db name can't be empty")
+	}
+
+	if c.DataBase.Host == "" {
+		return fmt.Errorf("db host can't be empty")
+	}
+
+	if c.DataBase.MaxAttemps <= 0 {
+		return fmt.Errorf("invalid database max attemps: %d", c.DataBase.MaxAttemps)
+	}
+
+	if c.DataBase.Password == "" {
+		return fmt.Errorf("db password can't be empty")
+	}
+
+	if c.DataBase.Port == "" {
+		return fmt.Errorf("db port can't be empty")
+	}
+
+	if c.DataBase.Username == "" {
+		return fmt.Errorf("db username can't be empty")
 	}
 
 	return nil
