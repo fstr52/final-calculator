@@ -6,7 +6,10 @@
 
 [![GitHub release](https://img.shields.io/github/v/release/docker/compose.svg?style=flat-square)](https://github.com/docker/compose/releases/latest)
 ![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)
-![License](https://img.shields.io/badge/License-MIT-green)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/fstr52/final-calculator)](https://goreportcard.com/report/github.com/fstr52/final-calculator)
+[![Telegram](https://img.shields.io/badge/Telegram-Contact-blue?logo=telegram)](https://t.me/fstrrr)
+[![Lines of Code](https://tokei.rs/b1/github/fstr52/final-calculator)](https://github.com/XAMPPRocky/tokei)
 
 Данный проект представляет собой простой распределённый вычислитель арифметических выражений.
 
