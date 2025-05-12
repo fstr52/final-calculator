@@ -33,15 +33,14 @@
 
 ## Как это работает
 
-<details>
 <summary><b>Архитектура (Mermaid-схема для GitHub)</b></summary>
 
 ```mermaid
 graph TD
-    Client[Пользователь]
+    Client[User]
     Nginx[Nginx]
     API[Orchestrator API]
-    Agent[Agent (вычислитель)]
+    Agent[Agent]
     DB[(PostgreSQL)]
     Client-->|HTTP/Web|Nginx
     Nginx-->|REST/JSON|API
@@ -49,7 +48,6 @@ graph TD
     API-->|SQL|DB
     Agent-->|gRPC|API
 ```
-</details>
 
 ## Примеры использования 
 
