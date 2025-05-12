@@ -264,7 +264,7 @@ func TestRestoreState(t *testing.T) {
 	// Проверяем, что результаты завершенных операций добавлены в кэш
 	val, exists := orch.doneCache[op1ID]
 	assert.True(t, exists, "Операция должна быть добавлена в кэш")
-	assert.Equal(t, float32(10.0), val)
+	assert.Equal(t, float64(10.0), val)
 
 	// Проверяем, что незавершенная операция добавлена в pendingOps
 	_, exists = orch.pendingOps[op2ID]
@@ -307,7 +307,7 @@ func TestTaskProcessingWorkflow(t *testing.T) {
 	orch.sendMu.Unlock()
 
 	// Настраиваем мок для обновления результата операции
-	mockOpStorage.On("UpdateOperationResult", mock.Anything, opID, float32(30.0), op.StatusDone.String()).Return(nil)
+	mockOpStorage.On("UpdateOperationResult", mock.Anything, opID, float64(30.0), op.StatusDone.String()).Return(nil)
 
 	// Шаг 1: Получение задачи воркером
 	worker := &pr.WorkerInfo{WorkerId: "test-worker"}
@@ -316,8 +316,8 @@ func TestTaskProcessingWorkflow(t *testing.T) {
 	assert.True(t, task.HasTask)
 	assert.Equal(t, opID, task.TaskId)
 	assert.Equal(t, "+", task.Operator)
-	assert.Equal(t, float32(10.0), task.Left)
-	assert.Equal(t, float32(20.0), task.Right)
+	assert.Equal(t, float64(10.0), task.Left)
+	assert.Equal(t, float64(20.0), task.Right)
 
 	// Проверяем, что очередь toSend опустела
 	assert.Empty(t, orch.toSend)
@@ -353,10 +353,10 @@ func TestTaskProcessingWorkflow(t *testing.T) {
 	val, exists := orch.doneCache[opID]
 	orch.cacheMu.RUnlock()
 	assert.True(t, exists)
-	assert.Equal(t, float32(30.0), val)
+	assert.Equal(t, float64(30.0), val)
 
 	// Проверяем, что операция обновлена в БД
-	mockOpStorage.AssertCalled(t, "UpdateOperationResult", mock.Anything, opID, float32(30.0), op.StatusDone.String())
+	mockOpStorage.AssertCalled(t, "UpdateOperationResult", mock.Anything, opID, float64(30.0), op.StatusDone.String())
 
 	// Проверяем, что выражение обновлено в БД, так как операция была корневой
 	mockExprStorage.AssertCalled(t, "Update", mock.Anything, mock.Anything)
