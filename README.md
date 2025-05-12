@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/fstr52/final-calculator)](https://goreportcard.com/report/github.com/fstr52/final-calculator)
 [![Telegram](https://img.shields.io/badge/Telegram-Contact-blue?logo=telegram)](https://t.me/fstrrr)
-[![Lines of Code](https://tokei.rs/b1/github/fstr52/final-calculator)](https://github.com/XAMPPRocky/tokei)
+![Lines of Code](https://tokei.rs/b1/github/fstr52/final-calculator)
 
 Данный проект представляет собой простой распределённый вычислитель арифметических выражений.
 
