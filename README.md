@@ -58,7 +58,7 @@ graph TD
 
     Curl запрос:
     ```bash
-    curl --location "localhost:8080/api/v1/registration" --header "Content-Type: application/json" --data "{\"login\": \"John Doe\", \"password\": \"qwerty\"}"
+    curl --location "localhost:8080/api/v1/register" --header "Content-Type: application/json" --data "{\"login\": \"John Doe\", \"password\": \"qwerty\"}"
     ```
 
     Тело запроса (для простоты визуализации и понимания):
@@ -215,7 +215,7 @@ graph TD
 2. **Неверный формат ввода**  
     Запрос: 
     ```bash
-    curl --location "localhost:8080/api/v1/calculate" --header "Content-Type: text/plain" --header "Authorization: Bearer 743feiwsdkfj...4w2" --data "{\"expression\": \"2+3\"}"
+    curl --location "localhost:8080/api/v1/calculate" --header "Content-Type: text/plain" --header "Authorization: Bearer 743feiwsdkfj...4w2" --data "expression: 4+4"
     ```
     Ответ:
     ```
@@ -232,11 +232,11 @@ graph TD
     ```
     Ответ:
     ```
-    {"error": "Wrong method, expected POST"}
+    404 page not found
     ```
     HTTP статус:
     ```
-    405 Method Not Allowed
+    404 page not found
     ```
 4. **Нет токена авторизации**  
     Запрос: 
