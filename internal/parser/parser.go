@@ -58,8 +58,6 @@ func NewParser(input string, logger logger.Logger) *Parser {
 }
 
 func (p *Parser) ParseExpr() (Expr, error) {
-	p.logger.Debug("Started ParseExpr")
-
 	if p.curr.Type == TokenEmpty {
 		curr, err := p.lexer.Next()
 		if err != nil {
@@ -78,7 +76,6 @@ func (p *Parser) ParseExpr() (Expr, error) {
 }
 
 func (p *Parser) eat(t TokenType) error {
-	p.logger.Debug("Started p.eat")
 	if p.curr.Type == t {
 		next, err := p.lexer.Next()
 		if err != nil {
@@ -107,8 +104,6 @@ func (p *Parser) lbp(tok TokenType) int {
 }
 
 func (p *Parser) nud(tok Token) (Expr, error) {
-	p.logger.Debug("Started p.nud",
-		"tok", fmt.Sprintf("%+v", tok))
 	switch tok.Type {
 	case TokenNum:
 		val, err := strconv.ParseFloat(tok.Value, 32)
@@ -162,7 +157,6 @@ func (p *Parser) led(left Expr, tok Token) (Expr, error) {
 }
 
 func (p *Parser) parseExpr(rbp int) (Expr, error) {
-	p.logger.Debug("Started p.parseExpr")
 	var err error
 
 	tok := p.curr
@@ -187,6 +181,5 @@ func (p *Parser) parseExpr(rbp int) (Expr, error) {
 		}
 	}
 
-	p.logger.Debug("parseExpr finished")
 	return left, nil
 }

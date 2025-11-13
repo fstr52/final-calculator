@@ -40,8 +40,6 @@ func NewLexer(input string, logger logger.Logger) *Lexer {
 }
 
 func (l *Lexer) Next() (Token, error) {
-	l.logger.Debug("Started l.Next")
-
 	for l.pos < len(l.input) && unicode.IsSpace(l.input[l.pos]) {
 		l.pos++
 	}
