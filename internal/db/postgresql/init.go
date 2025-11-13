@@ -20,7 +20,7 @@ func InitSchema(ctx context.Context, client Client) error {
                 user_id UUID REFERENCES users(id) ON DELETE CASCADE,
                 root_operation_id TEXT,
                 status VARCHAR(50),
-                success BOOLEAN,
+                success BOOLEAN NOT NULL,
                 result FLOAT,
                 error TEXT,
                 expression TEXT NOT NULL,
