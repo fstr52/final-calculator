@@ -38,9 +38,10 @@ type Orchestrator struct {
 	exprStorage      ex.Storage
 	opStorage        op.Storage
 
-	cacheMu sync.RWMutex
-	exprMu  sync.Mutex
-	sendMu  sync.Mutex
+	pendingMu sync.Mutex
+	cacheMu   sync.RWMutex
+	exprMu    sync.Mutex
+	sendMu    sync.Mutex
 }
 
 func NewOrchestrator(logger logger.Logger, client postgresql.Client, oc OperationsConfig) *Orchestrator {
@@ -128,7 +129,9 @@ func (o *Orchestrator) restoreState(ctx context.Context) {
 			if ready {
 				o.enqueue(oper)
 			} else {
+				o.pendingMu.Lock()
 				o.pendingOps[oper.ID] = oper
+				o.pendingMu.Unlock()
 			}
 		}
 	}
@@ -345,12 +348,17 @@ func (o *Orchestrator) nextExpr(ctx context.Context) {
 		if ready {
 			o.enqueue(op)
 		} else {
+			o.pendingMu.Lock()
 			o.pendingOps[op.ID] = op
+			o.pendingMu.Unlock()
 		}
 	}
 }
 
 func (o *Orchestrator) processPending(ctx context.Context) {
+	o.pendingMu.Lock()
+	defer o.pendingMu.Unlock()
+
 	if len(o.pendingOps) == 0 {
 		return
 	}
