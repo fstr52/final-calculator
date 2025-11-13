@@ -25,11 +25,11 @@ func NewStorage(client postgresql.Client, logger logger.Logger) *storage {
 
 func (s *storage) Create(ctx context.Context, expr expression.Expression) error {
 	q := `
-		INSERT INTO public.expressions (id, user_id, root_operation_id, status, expression)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO public.expressions (id, user_id, root_operation_id, status, expression, success)
+		VALUES ($1, $2, $3, $4, $5, $6)
 	`
 
-	_, err := s.client.Exec(ctx, q, expr.ID, expr.UserID, expr.RootOperationID, expr.Status, expr.Expression)
+	_, err := s.client.Exec(ctx, q, expr.ID, expr.UserID, expr.RootOperationID, expr.Status, expr.Expression, expr.Success)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
