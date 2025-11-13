@@ -29,7 +29,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger, err := logger.New(&logger.LoggingConfig{
+	logger, err := logger.New(logger.LoggingConfig{
 		Format: cfg.Logging.Format,
 		LogDir: cfg.Logging.Dir,
 		ToFile: cfg.Logging.ToFile,
@@ -54,6 +54,6 @@ func main() {
 
 	cancel()
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(1 * time.Second)
 	logger.Info("Agent stopped")
 }

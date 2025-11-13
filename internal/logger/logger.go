@@ -30,10 +30,14 @@ type LoggingConfig struct {
 }
 
 type slogLogger struct {
-	slog *slog.Logger
+	debug bool
+	slog  *slog.Logger
 }
 
 func (l *slogLogger) Debug(msg string, args ...any) {
+	if !l.debug {
+		return
+	}
 	l.slog.Debug(msg, args...)
 }
 
@@ -57,7 +61,7 @@ func (l *slogLogger) WithGroup(name string) Logger {
 	return &slogLogger{slog: l.slog.WithGroup(name)}
 }
 
-func New(cfg *LoggingConfig) (Logger, error) {
+func New(cfg LoggingConfig) (Logger, error) {
 	var writers []io.Writer
 
 	consoleWriter := os.Stdout
@@ -101,14 +105,14 @@ func New(cfg *LoggingConfig) (Logger, error) {
 	}
 
 	s := slog.New(handler)
-	slog.SetDefault(s) // По желанию
+	slog.SetDefault(s)
 
-	return &slogLogger{slog: s}, nil
+	return &slogLogger{slog: s, debug: cfg.Debug}, nil
 }
 
 func NewDefault() Logger {
 	s := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
-	return &slogLogger{slog: s}
+	return &slogLogger{slog: s, debug: false}
 }

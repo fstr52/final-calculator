@@ -32,9 +32,10 @@ func main() {
 	if err != nil {
 		tempLogger.Error("Failed to load config",
 			"error", err)
+		os.Exit(1)
 	}
 
-	logger, err := logger.New(&logger.LoggingConfig{
+	logger, err := logger.New(logger.LoggingConfig{
 		Format: cfg.Logging.Format,
 		LogDir: cfg.Logging.Dir,
 		ToFile: cfg.Logging.ToFile,
@@ -123,7 +124,7 @@ func main() {
 	<-stop
 	logger.Info("Shutdown signal received")
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer shutdownCancel()
 
 	cancel()
