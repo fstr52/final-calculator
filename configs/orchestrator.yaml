@@ -3,10 +3,10 @@ debug: false
 
 orchestrator:
   port: 8080
-  time_addition_ms: 5000
-  time_subtraction_ms: 5000
-  time_multiplications_ms: 10000
-  time_divisions_ms: 10000
+  time_addition_ms: 10
+  time_subtraction_ms: 10
+  time_multiplications_ms: 10
+  time_divisions_ms: 10
 
 agent: {}
 
@@ -19,7 +19,7 @@ data_base:
   max_attmeps: 5
 
 logging:
-  to_file: true
+  logging_to_file: true
   logging_dir: ./logs
   logging_format: json
   logging_file_max_size: 10

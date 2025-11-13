@@ -1,12 +1,12 @@
 signing_key: "skibidi"
-debug: true
+debug: false
 
 orchestrator: {}
 
 agent:
   orchestrator_host: orchestrator
   orchestrator_port: "50051"
-  computing_power: 10
+  computing_power: 100
 
 data_base: {}
 

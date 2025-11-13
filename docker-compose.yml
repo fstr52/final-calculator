@@ -10,7 +10,6 @@ services:
       POSTGRES_DB: calculator
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      # - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -37,8 +36,9 @@ services:
       DB_PASSWORD: postgres
       DB_NAME: calculator
       SIGNING_KEY: your_secret_key
-      DEBUG: "true"
+      DEBUG: false
       LOGGING_FORMAT: json
+      LOGGING_TO_FILE: false
     ports:
       - "8080:8080"
       - "50051:50051"
@@ -55,8 +55,8 @@ services:
     environment:
       ORCHESTRATOR_HOST: orchestrator
       ORCHESTRATOR_PORT: 50051
-      COMPUTING_POWER: 5
-      DEBUG: true
+      COMPUTING_POWER: 100
+      DEBUG: false
       LOGGING_FORMAT: json
     volumes:
       - agent-logs:/app/logs
