@@ -30,7 +30,7 @@ type DataBaseConfig struct {
 }
 
 type LoggingConfig struct {
-	ToFile   bool   `yaml:"to_file" env:"TO_FILE"`
+	ToFile   bool   `yaml:"logging_to_file" env:"LOGGING_TO_FILE"`
 	Dir      string `yaml:"logging_dir" env:"LOGGING_DIR"`       // Дирректория для логирования
 	Format   string `yaml:"logging_format" env:"LOGGING_FORMAT"` // Формат логирования, поддерживаемые форматы: json, текстовый (по стандарту - текстовый)
 	MaxSize  int    `yaml:"logging_file_max_size" env:"LOGGING_FILE_MAX_SIZE"`
