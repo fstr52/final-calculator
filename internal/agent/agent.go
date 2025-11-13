@@ -58,7 +58,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		a.mu.Unlock()
 
 		go func() {
-			err := a.RunWorker(ctx, workerId, a.host, a.port)
+			err := a.runWorker(ctx, workerId, a.host, a.port)
 			if err != nil {
 				a.logger.Error("Worker error",
 					"error", err)
@@ -69,14 +69,14 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	select {
 	case <-ctx.Done():
-		a.logger.Debug("Run finished gracefully")
+		a.logger.Info("Run finished gracefully")
 		return nil
 	case err := <-errChan:
 		return err
 	}
 }
 
-func (a *Agent) RunWorker(ctx context.Context, id string, host string, port string) error {
+func (a *Agent) runWorker(ctx context.Context, id string, host string, port string) error {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -119,7 +119,7 @@ func (a *Agent) RunWorker(ctx context.Context, id string, host string, port stri
 
 			var result float64
 
-			timer := time.NewTimer(time.Duration(task.OperationTime * time.Hour.Milliseconds()))
+			timer := time.NewTimer(time.Duration(task.OperationTime) * time.Millisecond)
 
 			switch task.Operator {
 			case "+":
