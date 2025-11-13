@@ -37,6 +37,7 @@ func InitSchema(ctx context.Context, client Client) error {
                 result FLOAT,
                 error TEXT,
                 status VARCHAR(20),
+                operation_time BIGINT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         `
