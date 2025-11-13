@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -34,6 +35,11 @@ func (o *Orchestrator) CalculateHandler(c *gin.Context) {
 
 	o.logger.Info("Processing calculation request",
 		"expression", userRequest.Expression)
+
+	if len(userRequest.Expression) > 30000 {
+		errMsg := fmt.Sprintf("Expression is too logn(%d symbols). Max len: 30000 symbols", len(userRequest.Expression))
+		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
+	}
 
 	userID, ok := c.Get("userID")
 	if !ok {
