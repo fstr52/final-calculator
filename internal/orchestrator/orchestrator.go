@@ -155,6 +155,7 @@ func (o *Orchestrator) NewExpression(ctx context.Context, input string, userID s
 		UserID:     userID,
 		Status:     ex.StatusCreated.String(),
 		Expression: input,
+		Success:    false,
 	}
 
 	if err = o.exprStorage.Create(ctx, *expr); err != nil {
